@@ -1,0 +1,1 @@
+"""Aura Studio desktop application."""

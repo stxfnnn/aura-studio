@@ -1,0 +1,4 @@
+# ASUS ROG HID access for the logged-in desktop user, including the Omni receiver.
+SUBSYSTEM=="hidraw", KERNEL=="hidraw*", ATTRS{idVendor}=="0b05", ATTRS{idProduct}=="1a83", OWNER="stefan", MODE="0600", TAG+="uaccess"
+SUBSYSTEM=="hidraw", KERNEL=="hidraw*", ATTRS{idVendor}=="0b05", ATTRS{idProduct}=="1a85", OWNER="stefan", MODE="0600", TAG+="uaccess"
+SUBSYSTEM=="hidraw", KERNEL=="hidraw*", ATTRS{idVendor}=="0b05", ATTRS{idProduct}=="1ace", OWNER="stefan", MODE="0600", TAG+="uaccess"
