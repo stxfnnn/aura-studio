@@ -494,7 +494,7 @@ class MacroController(QObject):
         return [{**macro, "triggerLabel": combo_name(macro["trigger"]) if macro["trigger"] else "",
                  "steps": [view(step) for step in macro["steps"]]} for macro in self._macros]
 
-    @Property("QVariantList", constant=True)
+    @Property("QVariantList", notify=changed)
     def mediaKeys(self) -> list[dict[str, Any]]:
         return [{"code": code, "label": tr(label)} for code, label in MEDIA_KEYS.items()]
 

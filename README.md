@@ -22,9 +22,11 @@
 | --- | --- |
 | ![Overview page](docs/overview.png) | ![OLED page](docs/oled.png) |
 
-| Aurora effect | Light theme |
+| Macro editor | Aurora effect |
 | --- | --- |
-| ![Aurora effect](docs/aurora.png) | ![Light theme](docs/light.png) |
+| ![Macro editor](docs/macros.png) | ![Aurora effect](docs/aurora.png) |
+
+![Light theme](docs/light.png)
 
 The screenshots show the built-in simulated devices.
 
