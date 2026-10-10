@@ -324,10 +324,48 @@ Item {
                 wrapMode: Text.Wrap
             }
 
-            // ---------------------------------------------------- live clock
+            // --------------------------------------------------- idle timeout
             Rectangle {
                 Layout.fillWidth: true
                 Layout.topMargin: 8
+                visible: service.oledOptions.canIdle === true
+                implicitHeight: idleBox.implicitHeight + 40
+                radius: Theme.radius
+                color: Theme.card
+                border.width: 1
+                border.color: Theme.strokeSoft
+                RowLayout {
+                    id: idleBox
+                    x: 20; y: 20
+                    width: parent.width - 40
+                    spacing: 16
+                    Rectangle {
+                        implicitWidth: 40; implicitHeight: 40; radius: 12
+                        color: Theme.raised
+                        Icon { anchors.centerIn: parent; name: "moon"; size: 20; color: service.oledOptions.oledIdle ? Theme.accent : Theme.textDim }
+                    }
+                    Column {
+                        Layout.fillWidth: true
+                        spacing: 3
+                        Text { text: L.t("Display aus nach Inaktivität (Minuten)"); color: Theme.text; font.pixelSize: 14; font.weight: Font.DemiBold }
+                        Text {
+                            width: parent.width
+                            text: L.t("Schaltet das Display aus, wenn die Tastatur so lange nicht benutzt wurde, und beim nächsten Tastendruck wieder ein. Gilt, solange Aura Studio läuft.")
+                            color: Theme.textFaint; font.pixelSize: 12
+                            wrapMode: Text.Wrap
+                        }
+                    }
+                    Segmented {
+                        options: [{value: 0, label: L.t("Nie")}, {value: 1, label: "1"}, {value: 5, label: "5"}, {value: 15, label: "15"}, {value: 30, label: "30"}, {value: 60, label: "60"}]
+                        value: service.oledOptions.oledIdle || 0
+                        onChosen: value => service.setDeviceOption("oledIdle", value)
+                    }
+                }
+            }
+
+            // ---------------------------------------------------- live clock
+            Rectangle {
+                Layout.fillWidth: true
                 implicitHeight: clockBox.implicitHeight + 40
                 radius: Theme.radius
                 color: Theme.card

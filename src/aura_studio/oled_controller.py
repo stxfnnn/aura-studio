@@ -254,6 +254,21 @@ class OledController(QObject):
         self.changed.emit()
         self._run("power", lambda link: link.set_power(on), tr("Display eingeschaltet") if on else tr("Display ausgeschaltet"))
 
+    def idle_power(self, on: bool) -> bool:
+        """Switch the display for the idle timeout, without storing it. False if it could not be done now."""
+        device = self._device
+        if not device or self._busy or not self._draft["power"]:
+            return False
+        if device.virtual:
+            return True
+        try:
+            with oled.OledLink(device.oled_path, device.oled_report) as link:
+                link.set_power(on, store=False)
+            return True
+        except OSError as exc:
+            self.logger.warning("OLED idle switch failed: %s", exc)
+            return False
+
     # The firmware can draw date and time itself, but only when told the time: it does
     # not count on its own. While the live clock is on we send the time once a second.
     clockChanged = Signal()

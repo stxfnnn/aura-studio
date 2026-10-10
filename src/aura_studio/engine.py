@@ -22,6 +22,7 @@ class Runner(threading.Thread):
         self.fps = fps
         self.preview = False
         self.hold = False  # True while something else (the OLED upload) needs the device
+        self.sleeping = False  # lights faded out after inactivity
         self.fallback_on_stop = True
         self._config = config
         self._on_frame = on_frame
@@ -105,8 +106,8 @@ class Runner(threading.Thread):
                     amount = effects.smoothstep(0.0, 1.0, fade)
                     frame = [effects.mix(a, b, amount) for a, b in zip(old, frame)]
             # Brightness and power changes glide instead of snapping.
-            target = config.get("brightness", 100) / 100 if config.get("enabled", True) else 0.0
-            level += (target - level) * min(1.0, elapsed * 9)
+            target = config.get("brightness", 100) / 100 if config.get("enabled", True) and not self.sleeping else 0.0
+            level += (target - level) * min(1.0, elapsed * (2.5 if self.sleeping else 9))
             if abs(target - level) < 0.004:
                 level = target
             if not self.hold:

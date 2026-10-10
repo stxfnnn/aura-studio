@@ -534,10 +534,15 @@ class OledLink:
         self._require(0x61, 0x00, 0x00, 0x00, number)
         self._require(0x50, 0x55, wait=1.5)
 
-    def set_power(self, on: bool) -> None:
-        """The display's own on/off setting, the one Armoury Crate offers as a switch."""
+    def set_power(self, on: bool, store: bool = True) -> None:
+        """The display's own on/off setting, the one Armoury Crate offers as a switch.
+
+        ``store=False`` skips the commit: the display reacts, but nothing is written to
+        flash. Used for the idle timeout, which may switch many times a day.
+        """
         self._require(0x69, 0x00, 0x00, 0x00, 1 if on else 0)
-        self._require(0x50, 0x55, wait=1.5)
+        if store:
+            self._require(0x50, 0x55, wait=1.5)
 
     def show_clock(self, now: datetime | None = None, seconds: bool = True) -> None:
         """Switch to the firmware's date/time screen. It does not tick on its own: send it again to update."""

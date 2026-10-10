@@ -14,6 +14,7 @@
 - **Macros.** Trigger a sequence of keys, mouse clicks, typed text and pauses from any key, mouse button or combination on your ROG devices: once, while held, or toggled. Steps can be recorded or edited by hand.
 - **Profiles.** Save lighting setups, see them as thumbnails and apply them with one click.
 - **Overview.** All controllable devices on one page, with the running effect, battery level and a power switch each.
+- **Idle timeouts per device.** Fade the lighting of keyboard or mouse, and switch the OLED off, after a chosen time without input.
 - **Battery warnings.** A desktop notification when keyboard or mouse run low, with an adjustable threshold.
 - **Made to be pleasant.** Live preview of keyboard and mouse, light and dark theme, an accent colour that follows the running effect or one you pick, soft interface sounds, optional system tray mode and start at login.
 - **English and German**, following the system language or set by hand.

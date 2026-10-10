@@ -205,9 +205,11 @@ def input_nodes() -> list[tuple[str, str]]:
 class Watcher(threading.Thread):
     """Tracks which keys and buttons are down and reports every change."""
 
-    def __init__(self, on_change: Callable[[frozenset[int], int, bool], None]) -> None:
+    def __init__(self, on_change: Callable[[frozenset[int], int, bool], None],
+                 on_activity: Callable[[str], None] = lambda kind: None) -> None:
         super().__init__(name="AuraMacroWatcher", daemon=True)
         self._on_change = on_change
+        self._on_activity = on_activity
         self._stop_read, self._stop_write = os.pipe()
         self.nodes = input_nodes()
 
@@ -233,6 +235,7 @@ class Watcher(threading.Thread):
             except OSError:
                 hid.app_logger().warning("Macro watcher cannot open %s", path)
         pressed: frozenset[int] = frozenset()
+        reported: dict[str, float] = {}
         try:
             while files:
                 ready, _, _ = select.select([*files, self._stop_read], [], [])
@@ -248,6 +251,11 @@ class Watcher(threading.Thread):
                         os.close(fd)
                         del files[fd]
                         continue
+                    # Any report (a key, a click, the mouse moving) counts as the device being used.
+                    moment = time.monotonic()
+                    if moment - reported.get(kind, 0.0) > 0.5:
+                        reported[kind] = moment
+                        self._on_activity(kind)
                     if kind == "keyboard":
                         self._keyboard(report, state)
                     elif len(report) >= 5:
@@ -352,6 +360,7 @@ class MacroController(QObject):
     changed = Signal()
     stateChanged = Signal()
     notify = Signal(str, str)
+    activity = Signal(str)   # "keyboard" | "mouse": the device was just used
     _captured = Signal(list)
     _recorded = Signal(int, bool, float)
 
@@ -410,11 +419,16 @@ class MacroController(QObject):
         except OSError as exc:
             self._problem = tr("Kein Zugriff auf /dev/uinput ({error}). Makros können nicht abgespielt werden.").format(error=exc)
             self.logger.warning("uinput unavailable: %s", exc)
-        self._watcher = Watcher(self._on_input)
+        self._watcher = Watcher(self._on_input, self.activity.emit)
         if not self._watcher.nodes and not self._problem:
             self._problem = tr("Kein Gerät gefunden, dessen Tasten als Auslöser gelesen werden können.")
         self._watcher.start()
         self.stateChanged.emit()
+
+    @property
+    def watched_kinds(self) -> set[str]:
+        """Kinds of devices ("keyboard", "mouse") whose input can be seen."""
+        return {kind for _, kind in self._watcher.nodes} if self._watcher else set()
 
     def set_options(self, enabled: bool, layout: str) -> None:
         global _layout

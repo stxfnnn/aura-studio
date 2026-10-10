@@ -270,4 +270,12 @@ EN: dict[str, str] = {
     "Startet Aura Studio mit dem Desktop, damit Beleuchtung und Makros sofort laufen. Ist „Im Hintergrund weiterlaufen“ aktiv, startet es unauffällig im Systemabschnitt.":
         "Starts Aura Studio with the desktop so lighting and macros run right away. With “Keep running in the background” on, it starts quietly in the system tray.",
     "Autostart konnte nicht geändert werden: {error}": "Could not change autostart: {error}",
+    # ------------------------------------------------------------------- idle
+    "GERÄT": "DEVICE", "Nie": "Never", "RUHT": "ASLEEP",
+    "Licht aus nach Inaktivität (Minuten)": "Lights off after inactivity (minutes)",
+    "Das Licht blendet aus, wenn dieses Gerät so lange nicht benutzt wurde, und kommt beim nächsten Tastendruck oder der nächsten Bewegung zurück.":
+        "The lights fade out when this device has not been used for that long, and come back with the next key press or movement.",
+    "Display aus nach Inaktivität (Minuten)": "Display off after inactivity (minutes)",
+    "Schaltet das Display aus, wenn die Tastatur so lange nicht benutzt wurde, und beim nächsten Tastendruck wieder ein. Gilt, solange Aura Studio läuft.":
+        "Switches the display off when the keyboard has not been used for that long, and back on with the next key press. Applies while Aura Studio is running.",
 }

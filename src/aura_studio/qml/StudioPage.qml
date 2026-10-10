@@ -11,6 +11,8 @@ Item {
     property var frame: []
     property var picker: null
     property var catalog: []
+    readonly property var deviceOptions: service.deviceOptions
+    readonly property bool asleep: device !== null && service.sleeping.indexOf(device.id) >= 0
 
     property string group: "all"
     property string paintColor: "#ff4d8d"
@@ -134,7 +136,7 @@ Item {
                         }
                     }
                     Text {
-                        text: !page.cfg.enabled ? L.t("AUS") : page.device && page.device.virtual ? L.t("VORSCHAU") : "LIVE"
+                        text: !page.cfg.enabled ? L.t("AUS") : page.asleep ? L.t("RUHT") : page.device && page.device.virtual ? L.t("VORSCHAU") : "LIVE"
                         color: "#6a6a79"
                         font.pixelSize: 10; font.weight: Font.Bold; font.letterSpacing: 1.3
                     }
@@ -426,6 +428,28 @@ Item {
                     }
 
                     Rectangle { width: parent.width; height: 1; color: Theme.strokeSoft }
+
+                    // Options of the device itself; not part of the effect or of profiles.
+                    Column {
+                        width: parent.width
+                        spacing: 8
+                        visible: page.deviceOptions.canIdle === true
+                        SectionLabel { text: L.t("GERÄT") }
+                        Text { text: L.t("Licht aus nach Inaktivität (Minuten)"); color: Theme.textDim; font.pixelSize: 13 }
+                        Segmented {
+                            options: [{value: 0, label: L.t("Nie")}, {value: 1, label: "1"}, {value: 5, label: "5"}, {value: 15, label: "15"}, {value: 30, label: "30"}, {value: 60, label: "60"}]
+                            value: page.deviceOptions.idle || 0
+                            onChosen: value => service.setDeviceOption("idle", value)
+                        }
+                        Text {
+                            width: parent.width
+                            text: L.t("Das Licht blendet aus, wenn dieses Gerät so lange nicht benutzt wurde, und kommt beim nächsten Tastendruck oder der nächsten Bewegung zurück.")
+                            color: Theme.textFaint; font.pixelSize: 12
+                            wrapMode: Text.Wrap
+                        }
+                    }
+
+                    Rectangle { width: parent.width; height: 1; color: Theme.strokeSoft; visible: page.deviceOptions.canIdle === true }
 
                     Column {
                         width: parent.width

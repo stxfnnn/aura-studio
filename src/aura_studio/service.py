@@ -9,6 +9,7 @@ import random
 import re
 import shlex
 import sys
+import time
 from dataclasses import asdict
 from pathlib import Path
 from typing import Any
@@ -61,6 +62,7 @@ class DeviceService(QObject):
     languageChanged = Signal()
     lowBatteryChanged = Signal()
     autostartChanged = Signal()
+    sleepingChanged = Signal()
     statusChanged = Signal()
     logsChanged = Signal(str)
     frameReady = Signal(list)
@@ -90,6 +92,14 @@ class DeviceService(QObject):
         self.oled.notify.connect(self.notify)
         self.macros = MacroController()
         self.macros.notify.connect(self.notify)
+        self.macros.activity.connect(self._on_activity)
+        self._last_activity: dict[str, float] = {}   # device kind -> last time it was used
+        self._sleeping: list[str] = []
+        self._oled_asleep = False
+        self._idle_timer = QTimer(self)
+        self._idle_timer.setInterval(5000)
+        self._idle_timer.timeout.connect(self._check_idle)
+        self._idle_timer.start()
         self._save_timer = QTimer(self)
         self._save_timer.setSingleShot(True)
         self._save_timer.setInterval(700)
@@ -158,7 +168,10 @@ class DeviceService(QObject):
         per = {name: effects.clean_settings(name, settings)
                for name, settings in (raw.get("per") or {}).items() if name in effects.EFFECTS}
         per.setdefault(effect, effects.default_settings(effect))
-        return {"effect": effect, "enabled": bool(raw.get("enabled", True)), "brightness": brightness, "per": per}
+        def minutes(key: str) -> int:
+            return raw.get(key) if raw.get(key) in DeviceService.IDLE_CHOICES else 0
+        return {"effect": effect, "enabled": bool(raw.get("enabled", True)), "brightness": brightness, "per": per,
+                "idle": minutes("idle"), "oledIdle": minutes("oledIdle")}
 
     def _entry(self, key: str) -> dict[str, Any]:
         if key not in self._store:
@@ -202,6 +215,8 @@ class DeviceService(QObject):
         chosen = next((device for device in controllable if device.key == wanted), controllable[0])
         if mode != "only":
             self.macros.start(self._settings["macros"], self._settings["layout"])
+        # Idle timeouts need input reports to tell when a device is used.
+        self._last_activity = {kind: time.monotonic() for kind in self.macros.watched_kinds}
         with_display = next((device for device in controllable if device.oled_path), None)
         self.oled.attach(with_display, self._runners.get(with_display.id) if with_display else None)
         self._selected = ""
@@ -234,8 +249,11 @@ class DeviceService(QObject):
     @Slot()
     def shutdown(self) -> None:
         self._save_timer.stop()
+        self._idle_timer.stop()
         self._save_state()
         self.macros.stop()
+        if self._oled_asleep and self.oled.idle_power(True):
+            self._oled_asleep = False
         self._stop_runners(fallback=self._settings["fallback"])
 
     def _device_view(self, device: discovery.Device) -> dict[str, Any]:
@@ -409,6 +427,9 @@ class DeviceService(QObject):
             if device.key not in touched:
                 change(self._entry(device.key))
                 touched.add(device.key)
+            if device.kind in self._last_activity:
+                self._last_activity[device.kind] = time.monotonic()  # show the change, even on a sleeping device
+        self._check_idle()
         for device in self._devices:
             if device.key in touched and device.id in self._runners:
                 self._runners[device.id].configure(self._flat(self._entry(device.key)))
@@ -582,6 +603,74 @@ class DeviceService(QObject):
         except OSError as exc:
             self.notify.emit(tr("Autostart konnte nicht geändert werden: {error}").format(error=exc), "error")
         self.autostartChanged.emit()
+
+
+    # ------------------------------------------------------------------- idle
+
+    IDLE_CHOICES = (0, 1, 5, 15, 30, 60)   # minutes; 0 = never
+
+    def _on_activity(self, kind: str) -> None:
+        self._last_activity[kind] = time.monotonic()
+        self._check_idle()
+
+    def _check_idle(self) -> None:
+        """Fade lighting and switch the OLED off once a device has not been used for its timeout."""
+        now = time.monotonic()
+        sleeping = []
+        for device in self._devices:
+            runner = self._runners.get(device.id)
+            if not runner or device.virtual or device.kind not in self._last_activity:
+                continue
+            idle = now - self._last_activity[device.kind]
+            entry = self._entry(device.key)
+            runner.sleeping = bool(entry["idle"]) and idle >= entry["idle"] * 60
+            if runner.sleeping:
+                sleeping.append(device.id)
+            if device.oled_path:
+                want_off = bool(entry["oledIdle"]) and idle >= entry["oledIdle"] * 60
+                if want_off != self._oled_asleep and self.oled.idle_power(not want_off):
+                    self._oled_asleep = want_off
+        if sleeping != self._sleeping:
+            self._sleeping = sleeping
+            self.sleepingChanged.emit()
+
+    @Property("QVariantList", notify=sleepingChanged)
+    def sleeping(self) -> list[str]:
+        """Ids of devices whose lighting is currently faded out for inactivity."""
+        return self._sleeping
+
+    @Property("QVariantMap", notify=configChanged)
+    def deviceOptions(self) -> dict[str, Any]:
+        """Per-device options of the selected device (not part of an effect or profile)."""
+        device = self._device(self._selected)
+        if not device:
+            return {}
+        entry = self._entry(device.key)
+        return {"idle": entry["idle"], "oledIdle": entry["oledIdle"], "hasOled": bool(device.oled_path),
+                "canIdle": not device.virtual and device.kind in self._last_activity}
+
+    @Property("QVariantMap", notify=configChanged)
+    def oledOptions(self) -> dict[str, Any]:
+        """Options of the device that carries the display."""
+        device = next((d for d in self._devices if d.controllable and d.oled_path), None)
+        return {"oledIdle": self._entry(device.key)["oledIdle"] if device else 0,
+                "canIdle": bool(device) and not device.virtual and "keyboard" in self._last_activity}
+
+    @Slot(str, int)
+    def setDeviceOption(self, key: str, minutes: int) -> None:
+        if minutes not in self.IDLE_CHOICES:
+            return
+        if key == "oledIdle":
+            device = next((d for d in self._devices if d.controllable and d.oled_path), None)
+        else:
+            device = self._device(self._selected)
+        if not device or key not in ("idle", "oledIdle"):
+            return
+        self._entry(device.key)[key] = minutes
+        self._last_activity[device.kind] = time.monotonic()  # changing the setting counts as activity
+        self._check_idle()
+        self.configChanged.emit()
+        self._save_timer.start()
 
     # --------------------------------------------------------------- profiles
 
