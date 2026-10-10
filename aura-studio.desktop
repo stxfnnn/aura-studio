@@ -1,6 +1,6 @@
 [Desktop Entry]
 Name=Aura Studio
-Comment=RGB control for ASUS devices on Linux
+Comment=RGB and OLED control for ASUS ROG devices
 Exec=aura-studio
 Icon=aura-studio
 Terminal=false

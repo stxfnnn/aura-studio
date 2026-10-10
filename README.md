@@ -1,53 +1,101 @@
 # Aura Studio
 
-Eine moderne Linux-Oberfläche für ASUS- und ROG-Peripherie. Qt 6 / QML passt sich an KDE Plasma und Wayland an. Die Gerätekommunikation erfolgt über einen eigenen Linux-`hidraw`-Adapter; OpenRGB ist keine Laufzeitabhängigkeit.
+**An open-source Armoury Crate alternative for Linux.** Per-key RGB effects and OLED control for ASUS ROG peripherals, with a native Qt interface and no vendor software, daemon or OpenRGB required.
 
-## Aktueller Umfang
+![Lighting studio with the fire effect](docs/studio.png)
 
-- Direkte HID-Suche nach ASUS-Geräten über Linux sysfs.
-- Eigener Aura-TUF-Protokolladapter für ROG Azoth per USB, direktem 2,4-GHz-Modus und über den erkannten Omni-Tastaturkanal.
-- ROG Harpe Ace Extreme: einzelne Mausrad-LED über HID LampArray; Farbe und Helligkeit per Standard-Feature-Reports.
-- Neun Effekte: statische Farbe, Atmen, Regenbogen, Farbzyklus, Puls, Ozean, Aurora, Feuer und Pastellfluss. Farbzyklus und zusätzliche Animationen werden als sparsame HID-Updates im Hintergrund erzeugt.
-- Eigene HSV-Farbfläche mit HEX-Eingabe, Preset-Farben, Helligkeits- und Geschwindigkeitseinstellung.
-- Profile werden lokal als JSON gespeichert und können geladen, überschrieben oder gelöscht werden.
-- Detaillierte HID-Erkennung mit Schnittstellen, Report-IDs, Gerätepfaden und gesendeten Berichten im Diagnoseprotokoll; Seriennummern werden ausgelassen.
-- Qt/QML-Oberfläche mit Geräte-Seiten, Hover- und Auswahlrückmeldung, Statusmeldungen, leisen Bedienklängen mit Ein/Aus-Schalter und Diagnoseansicht.
-- Editierbare Geräte werden getrennt von erkannter, derzeit nicht editierbarer Hardware angezeigt. Letztere ist unter „Erkannt, nicht editierbar“ einklappbar.
-- Azoth-OLED: noch kein eingebauter, validierter Schreibadapter für das klassische ROG Azoth.
+> Aura Studio is an independent community project. It is not affiliated with or endorsed by ASUS. ASUS, ROG, Aura and Armoury Crate are trademarks of their respective owners.
 
-## Start auf Fedora KDE
+## What it does
+
+- **Per-key lighting.** 20 effects that are computed for every key from its physical position: fire that burns upwards from the bottom row, thunderstorm, aurora, matrix rain, raindrops, comet, plasma, lava and more. Each effect has its own colours and controls (speed, direction, pattern size, flame height …), and every change shows on the device immediately.
+- **Custom keys.** Paint individual keys right in the live preview, with quick selections for WASD, arrows, numbers and so on.
+- **OLED display (ROG Azoth).** Send images, GIFs, static or scrolling text and 17 bundled animations to the keyboard's display, switch to the six factory animations, show a live clock, and turn the display on or off. Uploaded content is stored in the keyboard and keeps playing without the app.
+- **Profiles.** Save lighting setups, see them as thumbnails and apply them with one click.
+- **Overview.** All controllable devices on one page, with the running effect, keyboard battery level and a power switch each.
+- **Made to be pleasant.** Live preview of keyboard and mouse, light and dark theme, an accent colour that follows the running effect or one you pick, soft interface sounds, optional system tray mode.
+- **English and German**, following the system language or set by hand.
+
+| Overview | OLED display |
+| --- | --- |
+| ![Overview page](docs/overview.png) | ![OLED page](docs/oled.png) |
+
+| Aurora effect | Light theme |
+| --- | --- |
+| ![Aurora effect](docs/aurora.png) | ![Light theme](docs/light.png) |
+
+The screenshots show the built-in simulated devices.
+
+## Supported hardware
+
+| Device | Connection | Lighting | OLED |
+| --- | --- | --- | --- |
+| ROG Azoth | ROG Omni Receiver (2.4 GHz) | per key, **tested** | **tested** |
+| ROG Azoth | USB cable, own 2.4 GHz dongle | per key, implemented but untested | implemented but untested |
+| ROG Harpe Ace Extreme | ROG Omni Receiver | scroll wheel LED (HID LampArray), **tested** | – |
+
+Other ASUS HID devices are detected and listed but cannot be controlled yet. Features Armoury Crate has and Aura Studio does not: key remapping and macros, mouse DPI and polling settings, firmware updates, the OLED system monitor and music visualiser.
+
+Developed and tested on Fedora with KDE Plasma (Wayland). It should run on any current Linux desktop with Python 3.10+ and Qt 6.
+
+## Install
 
 ```bash
-sudo dnf install python3-pyside6
-python3 -m venv .venv
-. .venv/bin/activate
-pip install -e .
-aura-studio
+git clone https://github.com/stxfnnn/aura-studio.git
+cd aura-studio
+bash packaging/install-user.sh
 ```
 
-Für HID-Zugriff können passende udev-Rechte nötig sein. Eine eng auf die unterstützten Azoth-USB-IDs begrenzte Regel liegt unter `packaging/99-aura-studio.rules`. Installiere sie bei Bedarf nach `/etc/udev/rules.d/` und lade die udev-Regeln neu.
+The script creates a virtual environment inside the project folder, installs Aura Studio into it and adds a launcher to your application menu. Start it from the menu or with `.venv/bin/aura-studio`.
 
-## Installation als Benutzer-App
+Your user needs access to the devices' `hidraw` nodes. Install the bundled udev rule once:
 
 ```bash
-./packaging/install-user.sh
+sudo cp packaging/99-aura-studio.rules /etc/udev/rules.d/
+sudo udevadm control --reload && sudo udevadm trigger
 ```
 
-Das Skript legt einen Starter unter `~/.local/share/applications` an. Es installiert keine privilegierten udev-Regeln.
+To try the interface without any hardware, run `AURA_STUDIO_DEMO=only .venv/bin/aura-studio`; it starts with a simulated keyboard and mouse and touches no device.
 
-## Architektur
+## Good to know
 
-- `src/aura_studio/main.py`: Qt-App-Einstiegspunkt.
-- `src/aura_studio/backend.py`: HID-Erkennung, native HID-Kommunikation, Profile und rotierende Diagnoseprotokolle.
-- `src/aura_studio/qml/Main.qml`: Oberfläche.
-- `src/aura_studio/adapters/`: Treiberintegrationen nach Gerätefamilie.
+- **Effects are rendered by the app.** They run while Aura Studio is open (optionally in the system tray). On quit the keyboard is handed to its closest built-in firmware effect and the mouse returns to its own lighting.
+- **OLED uploads take a while.** The keyboard acknowledges every packet, which comes to roughly one second per frame over the wireless receiver. Key lighting pauses during a transfer.
+- **OLED brightness** is baked into the uploaded content; the factory animations and the live clock are not affected by it.
+- Settings and profiles live in `~/.config/aura-studio/`, the diagnostic log in `~/.local/state/aura-studio/`. Serial numbers are never logged.
 
-### Unterstützungsmodell
+## A word of caution
 
-Es gibt keine einzelne universelle ASUS-Schnittstelle für alle Mäuse, Tastaturen, OLEDs und Mainboards. Das native Backend steuert das klassische ROG Azoth über den Aura-TUF-HID-Kanal und die einzelne RGB-Lampe der Harpe Ace Extreme über den standardisierten HID LampArray-Kanal. Software-Animationen laufen, solange Aura Studio geöffnet ist; beim Beenden wird die autonome Mausrad-Beleuchtung wieder aktiviert. Der Azoth-OLED-Adapter fehlt weiterhin.
+ASUS does not document these protocols. Lighting uses the Aura TUF keyboard protocol and standard HID LampArray reports. The OLED support is based on community reverse engineering and writes to the keyboard's flash memory, so use it at your own risk. Aura Studio only commits an upload after the keyboard has acknowledged every single packet.
 
-Das rotierende Protokoll liegt unter `${XDG_STATE_HOME:-~/.local/state}/aura-studio/aura-studio.log`. Die Diagnoseansicht zeigt HID-Knoten, Report-IDs, Scan-Ergebnisse und Schreibversuche; das Protokoll kann aus der App kopiert werden.
+If the OLED ever misbehaves:
 
-## Lizenz
+- **Display stays dark, no logo when the keyboard powers on:** it is probably switched off in the keyboard (for example from Armoury Crate earlier). Use the power button at the top of the OLED page.
+- **Display stays black after an aborted transfer:** switch the keyboard off and on again.
+- **Display restarts in a loop:** pick one of the factory animations on the OLED page, several times if needed.
 
-MIT. Nicht mit ASUS verbunden. ASUS und ROG sind Marken ihrer jeweiligen Inhaber.
+## How it is built
+
+| Path | Purpose |
+| --- | --- |
+| `src/aura_studio/devices.py` | device discovery through sysfs |
+| `src/aura_studio/hid.py` | hidraw transport: per-key frames, LampArray, battery query |
+| `src/aura_studio/layout.py` | key positions and LED ids of the ROG Azoth |
+| `src/aura_studio/effects.py` | effect catalogue and per-key colour maths |
+| `src/aura_studio/engine.py` | one render thread per device |
+| `src/aura_studio/oled.py`, `oled_controller.py` | OLED rendering, animations and upload protocol |
+| `src/aura_studio/service.py` | bridge to the interface, saved state, profiles |
+| `src/aura_studio/i18n.py` | translations (source strings are German) |
+| `src/aura_studio/qml/` | the interface |
+| `tools/make_sounds.py` | regenerates the synthesised interface sounds |
+| `tools/check_translations.py` | verifies every interface string has a translation |
+
+Pure Python with PySide6 as the only dependency.
+
+## Credits
+
+The OLED protocol builds on the reverse-engineering work published in [Timeroot/azoth-nn](https://github.com/Timeroot/azoth-nn) and [IcyBlue17/ROG-AzothOLED-HIDProtocol](https://github.com/IcyBlue17/ROG-AzothOLED-HIDProtocol). The Aura TUF lighting protocol is known from the [OpenRGB](https://openrgb.org) project.
+
+## License
+
+MIT, see [LICENSE](LICENSE).

@@ -1,0 +1,276 @@
+"""Native Linux hidraw transport; no OpenRGB or vendor daemon required."""
+from __future__ import annotations
+
+import fcntl
+import logging
+import logging.handlers
+import os
+import select
+import time
+from pathlib import Path
+
+STATE_DIR = Path(os.environ.get("XDG_STATE_HOME", Path.home() / ".local/state")) / "aura-studio"
+LOG_PATH = STATE_DIR / "aura-studio.log"
+
+from .i18n import tr  # noqa: E402
+
+Color = tuple[int, int, int]
+
+
+def app_logger() -> logging.Logger:
+    logger = logging.getLogger("aura_studio")
+    if not logger.handlers:
+        STATE_DIR.mkdir(parents=True, exist_ok=True)
+        handler = logging.handlers.RotatingFileHandler(LOG_PATH, maxBytes=1_500_000, backupCount=3, encoding="utf-8")
+        handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
+        logger.addHandler(handler)
+        logger.setLevel(logging.DEBUG)
+        logger.propagate = False
+    return logger
+
+
+def _feature_ioctl(number: int, size: int) -> int:
+    return (3 << 30) | (size << 16) | (ord("H") << 8) | number
+
+
+def get_feature(fd: int, report_id: int, size: int) -> bytes:
+    buffer = bytearray(size)
+    buffer[0] = report_id
+    fcntl.ioctl(fd, _feature_ioctl(0x07, size), buffer, True)
+    return bytes(buffer)
+
+
+def set_feature(fd: int, report: bytes) -> None:
+    data = bytearray(report)
+    fcntl.ioctl(fd, _feature_ioctl(0x06, len(data)), data, True)
+
+
+def query_omni_pairing(path: str) -> list[tuple[int, int, int]] | None:
+    """Ask the documented, read-only Omni receiver paired-device list command."""
+    logger = app_logger()
+    fd = -1
+    try:
+        fd = os.open(path, os.O_RDWR | os.O_CLOEXEC | os.O_NONBLOCK)
+        request = bytearray(64)
+        request[0:3] = b"\x01\xa0\x00"
+        written = os.write(fd, request)
+        logger.info("Omni pairing query tx path=%s bytes=%d/%d", path, written, len(request))
+        ready, _, _ = select.select([fd], [], [], 0.25)
+        if not ready:
+            logger.info("Omni pairing query timeout path=%s", path)
+            return None
+        response = os.read(fd, 256)
+        logger.info("Omni pairing query rx path=%s bytes=%s", path, response.hex(" "))
+        # The receiver echoes [report id, command, subcommand], then returns
+        # [count, reserved, (PID LE, channel, type) * count].
+        if len(response) >= 5 and response[:3] == b"\x01\xa0\x00":
+            count = min(response[3], 2)
+            devices = []
+            for index in range(count):
+                offset = 5 + index * 4
+                if offset + 4 > len(response):
+                    break
+                devices.append((int.from_bytes(response[offset:offset + 2], "little"),
+                                response[offset + 2], response[offset + 3]))
+            return devices
+        logger.warning("Omni pairing query returned an unrecognized response path=%s", path)
+        return []
+    except OSError:
+        logger.exception("Omni pairing query failed path=%s", path)
+        return None
+    finally:
+        if fd >= 0:
+            os.close(fd)
+
+
+def query_battery(path: str, report_size: int) -> int | None:
+    """Battery level in percent from the keyboard's vendor channel (``12 01`` status query)."""
+    fd = -1
+    try:
+        fd = os.open(path, os.O_RDWR | os.O_CLOEXEC | os.O_NONBLOCK)
+        request = bytes((0x02, 0x12, 0x01)) + bytes(report_size - 3)
+        os.write(fd, request)
+        deadline = time.monotonic() + 0.3
+        while time.monotonic() < deadline:
+            if not select.select([fd], [], [], deadline - time.monotonic())[0]:
+                break
+            reply = os.read(fd, 256)
+            # Echo of the request (5 bytes), then a zero and the level in percent.
+            if reply[1:3] == b"\x12\x01" and len(reply) > 6:
+                return reply[6] if reply[6] <= 100 else None
+    except OSError:
+        app_logger().debug("battery query failed path=%s", path)
+    finally:
+        if fd >= 0:
+            os.close(fd)
+    return None
+
+
+class Link:
+    """A sink for rendered frames. ``send`` takes one colour per lamp id."""
+
+    fps_limit = 60.0
+
+    def open(self) -> None:
+        pass
+
+    def send(self, frame: dict[int, Color]) -> None:
+        pass
+
+    def close(self, fallback: tuple[str, Color, int] | None = None) -> None:
+        pass
+
+
+class NullLink(Link):
+    """Preview-only device used when no hardware is connected."""
+
+
+class KeyboardLink(Link):
+    """Aura TUF keyboard protocol: per-key direct frames plus firmware modes.
+
+    Direct frames are ``C0 81 <count> 00`` followed by ``id r g b`` entries.
+    Behind an Omni receiver the same payload travels on the keyboard's HID
+    report id instead of report 0. That report is one byte shorter, so a 15th
+    entry would lose its blue channel; only 14 fit there.
+    """
+
+    REPORT_SIZE = 65
+    MODES = {"Static": 0x00, "Breathing": 0x01, "Rainbow": 0x02}
+    REFRESH_SECONDS = 3.0
+    fps_limit = 30.0
+
+    def __init__(self, path: str, report_id: int = 0, save: bool = False) -> None:
+        self.path = path
+        self.report_id = report_id
+        self.save = save
+        self.per_packet = 14 if report_id else 15
+        self.fd = -1
+        self._sent: dict[int, Color] = {}
+        self._refreshed = 0.0
+
+    def open(self) -> None:
+        self.fd = os.open(self.path, os.O_RDWR | os.O_CLOEXEC | os.O_NONBLOCK)
+        self._sent = {}
+        app_logger().info("Keyboard link opened path=%s report_id=%d", self.path, self.report_id)
+
+    def _write(self, payload: bytes) -> None:
+        packet = bytes((self.report_id,)) + payload[1:]
+        written = os.write(self.fd, packet)
+        if written != len(packet):
+            raise OSError(tr("Unvollständiger HID-Bericht ({written}/{total} Bytes)").format(written=written, total=len(packet)))
+
+    def _drain(self) -> None:
+        # The keyboard acknowledges every direct packet; discard the replies so
+        # the kernel queue never fills up.
+        try:
+            while select.select([self.fd], [], [], 0)[0]:
+                if not os.read(self.fd, 256):
+                    break
+        except BlockingIOError:
+            pass
+
+    def send(self, frame: dict[int, Color]) -> None:
+        now = time.monotonic()
+        if now - self._refreshed > self.REFRESH_SECONDS:
+            # Periodic full frame: recovers after the keyboard slept or reconnected.
+            self._sent = {}
+            self._refreshed = now
+        changed = [(led, color) for led, color in frame.items() if self._sent.get(led) != color]
+        for start in range(0, len(changed), self.per_packet):
+            chunk = changed[start:start + self.per_packet]
+            packet = bytearray(self.REPORT_SIZE)
+            packet[1:4] = bytes((0xC0, 0x81, len(chunk)))
+            for index, (led, color) in enumerate(chunk):
+                packet[5 + index * 4:9 + index * 4] = bytes((led, *color))
+            self._write(bytes(packet))
+        if changed:
+            self._sent.update(changed)
+            self._drain()
+
+    def firmware_mode(self, mode: str, color: Color, brightness: int, speed: int = 50) -> None:
+        packet = bytearray(self.REPORT_SIZE)
+        packet[1:4] = bytes((0x51, 0x2C, self.MODES.get(mode, 0)))
+        packet[5] = round((100 - max(0, min(100, speed))) * 2.55)
+        packet[6] = max(0, min(100, brightness))
+        packet[7] = 0x10 if mode == "Breathing" else 0x00
+        packet[9] = 0x02
+        packet[10:13] = bytes(color)
+        self._write(bytes(packet))
+        app_logger().info("Keyboard firmware mode path=%s mode=%s color=%s brightness=%d", self.path, mode, color, brightness)
+        if self.save:
+            time.sleep(0.04)
+            store = bytearray(self.REPORT_SIZE)
+            store[1:3] = b"\x50\x55"
+            self._write(bytes(store))
+
+    def close(self, fallback: tuple[str, Color, int] | None = None) -> None:
+        if self.fd < 0:
+            return
+        try:
+            if fallback:
+                self.firmware_mode(*fallback)
+                time.sleep(0.03)
+                self._drain()
+        except OSError:
+            app_logger().exception("Could not hand keyboard back to firmware path=%s", self.path)
+        finally:
+            os.close(self.fd)
+            self.fd = -1
+
+
+class LampArrayLink(Link):
+    """Standard HID LampArray device with a single lamp (Harpe scroll wheel)."""
+
+    REFRESH_SECONDS = 2.0
+
+    def __init__(self, path: str) -> None:
+        self.path = path
+        self.fd = -1
+        self._sent: Color | None = None
+        self._refreshed = 0.0
+        self._autonomous_disabled = False
+
+    def open(self) -> None:
+        logger = app_logger()
+        self.fd = os.open(self.path, os.O_RDWR | os.O_CLOEXEC | os.O_NONBLOCK)
+        try:
+            attributes = get_feature(self.fd, 0x01, 23)
+            lamp_count = int.from_bytes(attributes[1:3], "little")
+            minimum_interval = int.from_bytes(attributes[19:23], "little") / 1_000_000
+            # The HID spec initializes the LampId cursor to zero, so this reads lamp 0.
+            lamp = get_feature(self.fd, 0x03, 29)
+            logger.info("LampArray capabilities path=%s attr=%s lamp=%s", self.path, attributes.hex(" "), lamp.hex(" "))
+            if lamp_count != 1 or not lamp[27] or min(lamp[23:26]) == 0:
+                raise OSError(tr("Die Mausrad-LED meldet kein programmierbares RGB-LampArray."))
+            self.fps_limit = 1 / min(max(minimum_interval, 0.02), 1.0)
+            set_feature(self.fd, bytes((0x06, 0x00)))
+            self._autonomous_disabled = True
+            self._sent = None
+            time.sleep(min(max(minimum_interval, 0.001), 1.0))
+        except Exception:
+            self.close()
+            raise
+
+    def send(self, frame: dict[int, Color]) -> None:
+        color = next(iter(frame.values()))
+        now = time.monotonic()
+        if color == self._sent and now - self._refreshed < self.REFRESH_SECONDS:
+            return
+        # LampUpdateComplete, LampIdStart, LampIdEnd, then RGBI.
+        set_feature(self.fd, bytes((0x05, 0x01, 0x00, 0x00, 0x00, 0x00, *color, 0xFF)))
+        self._sent = color
+        self._refreshed = now
+
+    def close(self, fallback: tuple[str, Color, int] | None = None) -> None:
+        if self.fd < 0:
+            return
+        try:
+            if self._autonomous_disabled:
+                set_feature(self.fd, bytes((0x06, 0x01)))
+                app_logger().info("LampArray control released path=%s", self.path)
+        except OSError:
+            app_logger().exception("Could not release LampArray path=%s", self.path)
+        finally:
+            self._autonomous_disabled = False
+            os.close(self.fd)
+            self.fd = -1

@@ -1,4 +1,8 @@
-# ASUS ROG HID access for the logged-in desktop user, including the Omni receiver.
-SUBSYSTEM=="hidraw", KERNEL=="hidraw*", ATTRS{idVendor}=="0b05", ATTRS{idProduct}=="1a83", OWNER="stefan", MODE="0600", TAG+="uaccess"
-SUBSYSTEM=="hidraw", KERNEL=="hidraw*", ATTRS{idVendor}=="0b05", ATTRS{idProduct}=="1a85", OWNER="stefan", MODE="0600", TAG+="uaccess"
-SUBSYSTEM=="hidraw", KERNEL=="hidraw*", ATTRS{idVendor}=="0b05", ATTRS{idProduct}=="1ace", OWNER="stefan", MODE="0600", TAG+="uaccess"
+# Lets the logged-in desktop user talk to supported ASUS ROG devices over hidraw.
+# Install:  sudo cp packaging/99-aura-studio.rules /etc/udev/rules.d/ && sudo udevadm control --reload && sudo udevadm trigger
+# ROG Azoth (USB)
+SUBSYSTEM=="hidraw", KERNEL=="hidraw*", ATTRS{idVendor}=="0b05", ATTRS{idProduct}=="1a83", TAG+="uaccess"
+# ROG Azoth (2.4 GHz, own dongle)
+SUBSYSTEM=="hidraw", KERNEL=="hidraw*", ATTRS{idVendor}=="0b05", ATTRS{idProduct}=="1a85", TAG+="uaccess"
+# ROG Omni Receiver (Azoth, Harpe Ace Extreme, ...)
+SUBSYSTEM=="hidraw", KERNEL=="hidraw*", ATTRS{idVendor}=="0b05", ATTRS{idProduct}=="1ace", TAG+="uaccess"

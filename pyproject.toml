@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "aura-studio"
-version = "0.1.0"
-description = "Native Linux control center for ASUS RGB peripherals"
+version = "0.3.0"
+description = "Open-source Armoury Crate alternative for Linux: per-key RGB and OLED control for ASUS ROG peripherals"
 readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "MIT"}
@@ -19,4 +19,4 @@ package-dir = {"" = "src"}
 include-package-data = true
 
 [tool.setuptools.package-data]
-aura_studio = ["qml/*.qml", "assets/*"]
+aura_studio = ["qml/*", "assets/*", "assets/sounds/*"]
