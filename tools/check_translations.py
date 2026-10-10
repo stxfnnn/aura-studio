@@ -22,12 +22,13 @@ for e in effects._CATALOG:
 for g in effects.GROUPS: keys.setdefault(g["name"], "catalog")
 for a in oled.ANIMATIONS.values(): keys.setdefault(a[0], "oled")
 for c in ("Tastatur", "Maus", "Empfänger", "Beleuchtung", "ASUS-Gerät", "Peripherie"): keys.setdefault(c, "category")
-from aura_studio import i18n
+from aura_studio import i18n, macros
+optional = set(macros._NAMES.values())  # key names; most are the same in every language
 missing = [k for k in keys if k not in i18n.EN]
 if "--all" in sys.argv:
     for k, w in keys.items(): print(repr(k))
 print(len(keys), "keys,", len(missing), "missing", file=sys.stderr)
 for k in missing[:400]: print("MISSING", repr(k), keys[k])
-stale = [k for k in i18n.EN if k not in keys]
+stale = [k for k in i18n.EN if k not in keys and k not in optional]
 for k in stale: print("STALE", repr(k))
 sys.exit(1 if missing or stale else 0)

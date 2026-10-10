@@ -35,7 +35,12 @@ def main() -> int:
     engine = QQmlApplicationEngine()
     engine.rootContext().setContextProperty("service", service)
     engine.rootContext().setContextProperty("oled", service.oled)
-    engine.rootContext().setContextProperty("trayAvailable", QSystemTrayIcon.isSystemTrayAvailable())
+    engine.rootContext().setContextProperty("macros", service.macros)
+    tray_available = QSystemTrayIcon.isSystemTrayAvailable()
+    engine.rootContext().setContextProperty("trayAvailable", tray_available)
+    # Started at login: stay out of the way if there is a tray icon to come back from.
+    start_hidden = "--background" in sys.argv[1:] and tray_available and bool(service.settings["tray"])
+    engine.rootContext().setContextProperty("startHidden", start_hidden)
     engine.load(QUrl.fromLocalFile(str(PACKAGE_DIR / "qml" / "Main.qml")))
     if not engine.rootObjects():
         service.shutdown()

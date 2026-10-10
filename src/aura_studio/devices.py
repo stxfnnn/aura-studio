@@ -28,6 +28,8 @@ class Device:
     virtual: bool = False
     oled_path: str = ""   # hidraw node of the OLED command channel, if the device has a display
     oled_report: int = 0  # size of one report on that node, including the report id
+    # How to ask for the battery level: (hidraw path, report id, status query, reply index), or empty.
+    battery_query: tuple = ()
 
     @property
     def path(self) -> str:
@@ -65,6 +67,7 @@ def scan() -> list[Device]:
     paired_devices: dict[str, list[tuple[int, int, int]]] = {}
     lamp_arrays: dict[str, str] = {}
     oled_nodes: dict[str, str] = {}
+    receiver_nodes: dict[str, str] = {}
     logger.info("HID scan started")
     nodes = sorted(Path("/sys/class/hidraw").glob("hidraw*"))
     logger.info("HID scan found %d hidraw node(s)", len(nodes))
@@ -137,7 +140,10 @@ def scan() -> list[Device]:
                    controllable=supported, detail=detail, product_id=f"0x{pid:04X}",
                    kind="keyboard" if supported else "",
                    # Through the receiver the display shares the key lighting channel (64-byte reports).
-                   oled_path=path if omni_channel is not None else "", oled_report=64 if omni_channel is not None else 0))
+                   oled_path=path if omni_channel is not None else "", oled_report=64 if omni_channel is not None else 0,
+                   battery_query=(path, omni_channel, 0x01, 6) if omni_channel is not None else ()))
+        if omni_channel is not None:
+            receiver_nodes[parent] = path
 
     found: list[Device] = []
     for (parent, pid), interfaces in candidates.items():
@@ -161,6 +167,7 @@ def scan() -> list[Device]:
                 id=f"{lamp_path}#lamp-array" if lamp_path else f"{parent}#paired-{mouse_pid:04x}-{mouse_channel}",
                 name=mouse_name, source="Omni Receiver", category="Maus", controllable=controllable,
                 product_id=f"0x{mouse_pid:04X}", kind="mouse" if controllable else "",
+                battery_query=(receiver_nodes[parent], mouse_channel, 0x07, 5) if parent in receiver_nodes else (),
                 detail=(tr("Mausrad-LED · HID LampArray") if controllable else
                         tr("Gekoppeltes Gerät · Report-ID {channel} · keine LampArray-Schnittstelle").format(channel=mouse_channel))))
             logger.info("selected paired mouse=%s pid=0x%04x channel=%d kind=%d lamp_path=%s controllable=%s",

@@ -171,7 +171,31 @@ Item {
             }
 
             Card {
+                CardTitle { text: L.t("AKKU") }
+                SettingRow {
+                    title: L.t("Bei schwachem Akku benachrichtigen")
+                    hint: L.t("Zeigt eine Systembenachrichtigung, sobald Tastatur oder Maus unter die Schwelle fallen. In der App werden sie immer markiert.")
+                    Toggle { checked: page.settings.batteryAlerts; onToggled: value => service.setSetting("batteryAlerts", value) }
+                }
+                SettingRow {
+                    title: L.t("Warnschwelle  ·  ") + page.settings.batteryThreshold + " %"
+                    ValueSlider {
+                        width: 200
+                        anchors.verticalCenter: parent.verticalCenter
+                        from: 5; to: 50
+                        value: page.settings.batteryThreshold
+                        onMoved: value => service.setSetting("batteryThreshold", Math.round(value / 5) * 5)
+                    }
+                }
+            }
+
+            Card {
                 CardTitle { text: L.t("VERHALTEN") }
+                SettingRow {
+                    title: L.t("Beim Anmelden automatisch starten")
+                    hint: L.t("Startet Aura Studio mit dem Desktop, damit Beleuchtung und Makros sofort laufen. Ist „Im Hintergrund weiterlaufen“ aktiv, startet es unauffällig im Systemabschnitt.")
+                    Toggle { checked: service.autostart; onToggled: value => service.setAutostart(value) }
+                }
                 SettingRow {
                     title: L.t("Im Hintergrund weiterlaufen")
                     hint: L.t("Beim Schließen des Fensters bleibt Aura Studio im Systemabschnitt der Kontrollleiste aktiv, damit die Effekte weiterlaufen.")

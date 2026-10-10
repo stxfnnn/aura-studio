@@ -674,6 +674,16 @@ def create(effect_id: str, field: Field, seed: int | None = None) -> Effect:
 THUMB_COLUMNS, THUMB_ROWS = 13, 5
 
 
+def still(effect_id: str, settings: dict[str, Any], field: Field) -> list[str]:
+    """A representative frame of an effect on the given lamps (one colour per lamp)."""
+    effect = create(effect_id, field, seed=7)
+    params = params_from(settings)
+    frame: list[RGB] = []
+    for tick in range(70):
+        frame = effect.render(2.0 + tick / 20, 1 / 20, params)
+    return [rgb_to_hex(color) for color in frame]
+
+
 def thumbnail(effect_id: str, settings: dict[str, Any] | None = None) -> list[str]:
     """A representative still frame on a coarse grid, for the gallery and profile cards."""
     if settings is None:

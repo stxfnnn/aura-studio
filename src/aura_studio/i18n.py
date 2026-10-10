@@ -225,4 +225,49 @@ EN: dict[str, str] = {
     "Hintergrund": "Background", "Anzahl": "Count", "Herzschlag": "Heartbeat",
     "Ein doppelter Pulsschlag, der sich von der Mitte nach außen ausbreitet.": "A double beat that spreads outwards from the centre.",
     "Puls": "Pulse", "Ausbreitung": "Spread",
+    # ---------------------------------------------------------------- battery
+    "Akku schwach · ": "Battery low · ", "Akku schwach": "Battery low", "AKKU": "BATTERY",
+    "Bei schwachem Akku benachrichtigen": "Notify when the battery is low",
+    "Zeigt eine Systembenachrichtigung, sobald Tastatur oder Maus unter die Schwelle fallen. In der App werden sie immer markiert.":
+        "Shows a desktop notification as soon as keyboard or mouse drop below the threshold. They are always marked in the app.",
+    "Warnschwelle  ·  ": "Warning threshold  ·  ",
+    "{name}: Akku schwach": "{name}: battery low", "Noch {level} %. Bitte bald aufladen.": "{level} % left. Please charge soon.",
+    # ----------------------------------------------------------------- macros
+    "Makros": "Macros", "Angehalten": "Paused", "Ohne Namen": "Unnamed", "Kein Auslöser": "No trigger",
+    "Neues Makro": "New macro", "Noch keine Makros": "No macros yet",
+    "Ein Makro spielt auf Tastendruck eine Folge von Tasten, Mausklicks, Texten und Pausen ab – ausgelöst von einer Taste oder Maustaste deiner ROG-Geräte.":
+        "A macro plays a sequence of keys, mouse clicks, text and pauses at the press of a button – triggered by a key or mouse button of your ROG devices.",
+    "Name": "Name", "Makro löschen": "Delete macro", "AUSLÖSER": "TRIGGER",
+    "Jetzt Taste oder Kombination drücken …": "Press a key or combination now …",
+    "Auslöser festlegen": "Set trigger", "Auslöser entfernen": "Remove trigger",
+    "Einmal": "Once", "Solange gedrückt": "While held", "Ein / Aus": "Toggle",
+    "Auslöser kann eine Taste, eine Maustaste oder eine Kombination aus bis zu vier davon sein. Die Auslösetaste behält dabei ihre normale Funktion – am besten eine Kombination oder Taste wählen, die sonst nichts tut.":
+        "A trigger can be a key, a mouse button or a combination of up to four of them. The trigger key keeps its normal function – best pick a combination or key that does nothing otherwise.",
+    "SCHRITTE": "STEPS", "Aufnahme beenden": "Stop recording", "Aufnehmen": "Record",
+    "Alle Schritte löschen": "Delete all steps",
+    "Aufnahme läuft: Jede Taste und Maustaste deiner ROG-Geräte wird mit den Pausen dazwischen als Schritt übernommen.":
+        "Recording: every key and mouse button of your ROG devices is added as a step, including the pauses in between.",
+    "Noch keine Schritte. Füge unten welche hinzu oder nimm sie auf.": "No steps yet. Add some below or record them.",
+    "Taste": "Key", "Pause": "Pause", "Taste drücken …": "Press a key …", "Antippen": "Tap", "Drücken": "Press",
+    "Loslassen": "Release", "Text, der getippt wird": "Text to type", "Nach oben": "Move up", "Nach unten": "Move down",
+    "Schritt entfernen": "Remove step", "MEDIENTASTE HINZUFÜGEN": "ADD MEDIA KEY",
+    "Tasten für einen Schritt wählst du, indem du sie auf Tastatur oder Maus drückst. Getippter Text richtet sich nach dem Tastaturlayout aus den Einstellungen. Makros laufen, solange Aura Studio geöffnet ist.":
+        "Pick the key for a step by pressing it on the keyboard or mouse. Typed text follows the keyboard layout from the settings. Macros run while Aura Studio is open.",
+    "Kein Gerät gefunden, dessen Tasten als Auslöser gelesen werden können.": "No device found whose keys can be read as triggers.",
+    "Makro startet in 3 Sekunden – jetzt ins Zielfenster klicken": "Macro starts in 3 seconds – click into the target window now",
+    "Taste {code}": "Key {code}", "Makros können gerade nicht abgespielt werden.": "Macros cannot be played right now.",
+    "Kein Zugriff auf /dev/uinput ({error}). Makros können nicht abgespielt werden.": "No access to /dev/uinput ({error}). Macros cannot be played.",
+    # key names
+    "Leertaste": "Space", "Strg": "Ctrl", "Strg rechts": "Right Ctrl", "Umschalt": "Shift", "Umschalt rechts": "Right Shift",
+    "Super rechts": "Right Super", "Druck": "Print", "Rollen": "Scroll Lock", "Einfg": "Insert", "Entf": "Delete",
+    "Pos1": "Home", "Ende": "End", "Bild↑": "Page Up", "Bild↓": "Page Down", "Menü": "Menu", "Num ,": "Num .",
+    "Linke Maustaste": "Left mouse button", "Rechte Maustaste": "Right mouse button", "Mittlere Maustaste": "Middle mouse button",
+    "Seitentaste hinten": "Back side button", "Seitentaste vorn": "Forward side button",
+    "Stumm": "Mute", "Leiser": "Volume down", "Lauter": "Volume up", "Wiedergabe/Pause": "Play/Pause",
+    "Nächster Titel": "Next track", "Vorheriger Titel": "Previous track",
+    # -------------------------------------------------------------- autostart
+    "Beim Anmelden automatisch starten": "Start automatically at login",
+    "Startet Aura Studio mit dem Desktop, damit Beleuchtung und Makros sofort laufen. Ist „Im Hintergrund weiterlaufen“ aktiv, startet es unauffällig im Systemabschnitt.":
+        "Starts Aura Studio with the desktop so lighting and macros run right away. With “Keep running in the background” on, it starts quietly in the system tray.",
+    "Autostart konnte nicht geändert werden: {error}": "Could not change autostart: {error}",
 }

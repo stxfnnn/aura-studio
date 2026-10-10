@@ -11,9 +11,11 @@
 - **Per-key lighting.** 20 effects that are computed for every key from its physical position: fire that burns upwards from the bottom row, thunderstorm, aurora, matrix rain, raindrops, comet, plasma, lava and more. Each effect has its own colours and controls (speed, direction, pattern size, flame height …), and every change shows on the device immediately.
 - **Custom keys.** Paint individual keys right in the live preview, with quick selections for WASD, arrows, numbers and so on.
 - **OLED display (ROG Azoth).** Send images, GIFs, static or scrolling text and 17 bundled animations to the keyboard's display, switch to the six factory animations, show a live clock, and turn the display on or off. Uploaded content is stored in the keyboard and keeps playing without the app.
+- **Macros.** Trigger a sequence of keys, mouse clicks, typed text and pauses from any key, mouse button or combination on your ROG devices: once, while held, or toggled. Steps can be recorded or edited by hand.
 - **Profiles.** Save lighting setups, see them as thumbnails and apply them with one click.
-- **Overview.** All controllable devices on one page, with the running effect, keyboard battery level and a power switch each.
-- **Made to be pleasant.** Live preview of keyboard and mouse, light and dark theme, an accent colour that follows the running effect or one you pick, soft interface sounds, optional system tray mode.
+- **Overview.** All controllable devices on one page, with the running effect, battery level and a power switch each.
+- **Battery warnings.** A desktop notification when keyboard or mouse run low, with an adjustable threshold.
+- **Made to be pleasant.** Live preview of keyboard and mouse, light and dark theme, an accent colour that follows the running effect or one you pick, soft interface sounds, optional system tray mode and start at login.
 - **English and German**, following the system language or set by hand.
 
 | Overview | OLED display |
@@ -34,7 +36,7 @@ The screenshots show the built-in simulated devices.
 | ROG Azoth | USB cable, own 2.4 GHz dongle | per key, implemented but untested | implemented but untested |
 | ROG Harpe Ace Extreme | ROG Omni Receiver | scroll wheel LED (HID LampArray), **tested** | – |
 
-Other ASUS HID devices are detected and listed but cannot be controlled yet. Features Armoury Crate has and Aura Studio does not: key remapping and macros, mouse DPI and polling settings, firmware updates, the OLED system monitor and music visualiser.
+Other ASUS HID devices are detected and listed but cannot be controlled yet. Features Armoury Crate has and Aura Studio does not: key remapping, macros stored in the device, mouse DPI and polling settings, firmware updates, the OLED system monitor and music visualiser.
 
 Developed and tested on Fedora with KDE Plasma (Wayland). It should run on any current Linux desktop with Python 3.10+ and Qt 6.
 
@@ -62,7 +64,8 @@ To try the interface without any hardware, run `AURA_STUDIO_DEMO=only .venv/bin/
 - **Effects are rendered by the app.** They run while Aura Studio is open (optionally in the system tray). On quit the keyboard is handed to its closest built-in firmware effect and the mouse returns to its own lighting.
 - **OLED uploads take a while.** The keyboard acknowledges every packet, which comes to roughly one second per frame over the wireless receiver. Key lighting pauses during a transfer.
 - **OLED brightness** is baked into the uploaded content; the factory animations and the live clock are not affected by it.
-- Settings and profiles live in `~/.config/aura-studio/`, the diagnostic log in `~/.local/state/aura-studio/`. Serial numbers are never logged.
+- **Macros run in software.** Triggers are read from the devices' HID reports and played back through a virtual input device (`/dev/uinput` must be writable for your user). The trigger key keeps its normal function, and macros only work while Aura Studio is running. Key presses are matched in memory and never logged.
+- Settings, profiles and macros live in `~/.config/aura-studio/`, the diagnostic log in `~/.local/state/aura-studio/`. Serial numbers are never logged.
 
 ## A word of caution
 
@@ -84,13 +87,18 @@ If the OLED ever misbehaves:
 | `src/aura_studio/effects.py` | effect catalogue and per-key colour maths |
 | `src/aura_studio/engine.py` | one render thread per device |
 | `src/aura_studio/oled.py`, `oled_controller.py` | OLED rendering, animations and upload protocol |
-| `src/aura_studio/service.py` | bridge to the interface, saved state, profiles |
+| `src/aura_studio/macros.py` | macro triggers (hidraw), playback (uinput) and the macro editor's backend |
+| `src/aura_studio/service.py` | bridge to the interface, saved state, profiles, battery warnings |
 | `src/aura_studio/i18n.py` | translations (source strings are German) |
 | `src/aura_studio/qml/` | the interface |
 | `tools/make_sounds.py` | regenerates the synthesised interface sounds |
 | `tools/check_translations.py` | verifies every interface string has a translation |
 
 Pure Python with PySide6 as the only dependency.
+
+## How it was made
+
+Aura Studio is, among other things, vibe coded: large parts were written with AI coding assistants (it started with ChatGPT and was rebuilt with Claude Code) and directed, tested on real hardware and steered by a human. Read the code with that in mind, and expect rough edges on hardware it has not been tested with.
 
 ## Credits
 

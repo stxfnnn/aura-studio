@@ -7,6 +7,8 @@ import json
 import os
 import random
 import re
+import shlex
+import sys
 from dataclasses import asdict
 from pathlib import Path
 from typing import Any
@@ -14,14 +16,16 @@ from typing import Any
 from PySide6.QtCore import Property, QObject, QTimer, Signal, Slot
 from PySide6.QtWidgets import QApplication
 
-from . import devices as discovery, effects, hid, i18n, layout
+from . import devices as discovery, effects, hid, i18n, layout, notifications
 from .engine import Runner
 from .i18n import tr
+from .macros import MacroController
 from .oled_controller import OledController
 
 CONFIG_DIR = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")) / "aura-studio"
 PROFILE_DIR = CONFIG_DIR / "profiles"
 STATE_PATH = CONFIG_DIR / "state.json"
+AUTOSTART_PATH = CONFIG_DIR.parent / "autostart" / "aura-studio.desktop"
 
 DEFAULT_SETTINGS: dict[str, Any] = {
     "sounds": True,      # interface sounds
@@ -36,6 +40,9 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "accentMode": "effect",  # "effect": follow the running effect, "custom": use accentColor
     "accentColor": "#9b7dff",
     "language": "system",  # "system" | "de" | "en"
+    "batteryAlerts": True,   # desktop notification when a device runs low
+    "batteryThreshold": 20,  # percent
+    "macros": True,          # run software macros
 }
 CHOICES = {"theme": ("dark", "light", "system"), "accentMode": ("effect", "custom"),
            "language": ("system", *i18n.LANGUAGES)}
@@ -52,6 +59,8 @@ class DeviceService(QObject):
     activeProfileChanged = Signal()
     overviewChanged = Signal()
     languageChanged = Signal()
+    lowBatteryChanged = Signal()
+    autostartChanged = Signal()
     statusChanged = Signal()
     logsChanged = Signal(str)
     frameReady = Signal(list)
@@ -79,6 +88,8 @@ class DeviceService(QObject):
         self._catalog = effects.catalog()
         self.oled = OledController(self._saved_oled)
         self.oled.notify.connect(self.notify)
+        self.macros = MacroController()
+        self.macros.notify.connect(self.notify)
         self._save_timer = QTimer(self)
         self._save_timer.setSingleShot(True)
         self._save_timer.setInterval(700)
@@ -87,6 +98,8 @@ class DeviceService(QObject):
         self.oled.changed.connect(self._save_timer.start)
         self.oled.other_runners = lambda: list(self._runners.values()) if self._settings["oledPauseAll"] else []
         self._battery: dict[str, int] = {}
+        self._warned: set[str] = set()
+        self._low: list[str] = []
         self._thumbs: dict[str, list[str]] = {}
         self._battery_timer = QTimer(self)
         self._battery_timer.setInterval(BATTERY_SECONDS * 1000)
@@ -187,6 +200,8 @@ class DeviceService(QObject):
             self._runners[device.id] = runner
             runner.start()
         chosen = next((device for device in controllable if device.key == wanted), controllable[0])
+        if mode != "only":
+            self.macros.start(self._settings["macros"], self._settings["layout"])
         with_display = next((device for device in controllable if device.oled_path), None)
         self.oled.attach(with_display, self._runners.get(with_display.id) if with_display else None)
         self._selected = ""
@@ -220,6 +235,7 @@ class DeviceService(QObject):
     def shutdown(self) -> None:
         self._save_timer.stop()
         self._save_state()
+        self.macros.stop()
         self._stop_runners(fallback=self._settings["fallback"])
 
     def _device_view(self, device: discovery.Device) -> dict[str, Any]:
@@ -284,13 +300,40 @@ class DeviceService(QObject):
     def _read_batteries(self, announce: bool = True) -> None:
         changed = False
         for device in self._devices:
-            if device.oled_path and not device.virtual and not self.oled.busy:
-                level = hid.query_battery(device.oled_path, device.oled_report)
+            if device.battery_query and not self.oled.busy:
+                level = hid.query_battery(*device.battery_query)
                 if level is not None and self._battery.get(device.id) != level:
                     self._battery[device.id] = level
                     changed = True
+        self._check_low_batteries()
         if changed and announce:
             self.overviewChanged.emit()
+
+    def _check_low_batteries(self) -> None:
+        """Warn once per discharge when a device drops to the threshold."""
+        threshold = self._settings["batteryThreshold"]
+        low = sorted(device_id for device_id, level in self._battery.items() if level <= threshold)
+        for device in self._devices:
+            level = self._battery.get(device.id)
+            if level is None:
+                continue
+            if level <= threshold and device.id not in self._warned:
+                self._warned.add(device.id)
+                title = tr("{name}: Akku schwach").format(name=device.name)
+                body = tr("Noch {level} %. Bitte bald aufladen.").format(level=level)
+                self.notify.emit(f"{title} · {body}", "error")  # in the app, whatever the desktop does
+                if self._settings["batteryAlerts"]:
+                    notifications.send(title, body)
+            elif level > threshold + 5:
+                self._warned.discard(device.id)  # recharged; warn again next time
+        if low != self._low:
+            self._low = low
+            self.lowBatteryChanged.emit()
+
+    @Property("QVariantList", notify=lowBatteryChanged)
+    def lowBattery(self) -> list[str]:
+        """Ids of devices at or below the warning threshold."""
+        return self._low
 
     @Property("QVariantList", notify=overviewChanged)
     def overview(self) -> list[dict[str, Any]]:
@@ -300,17 +343,20 @@ class DeviceService(QObject):
             if not device.controllable:
                 continue
             flat = self._flat(self._entry(device.key))
-            signature = json.dumps(self._signature(flat), sort_keys=True)
+            signature = device.kind + self._settings["layout"] + json.dumps(self._signature(flat), sort_keys=True)
             if signature not in self._thumbs:
                 if len(self._thumbs) > 64:
                     self._thumbs.clear()
-                self._thumbs[signature] = effects.thumbnail(flat["effect"], effects.clean_settings(flat["effect"], flat))
+                self._thumbs[signature] = effects.still(flat["effect"], effects.clean_settings(flat["effect"], flat),
+                                                        self._field(device))
             cards.append({"id": device.id, "name": device.name, "kind": device.kind, "source": device.source,
                           "detail": device.detail, "virtual": device.virtual, "hasOled": bool(device.oled_path),
                           "effectName": tr(effects.EFFECTS[flat["effect"]]["name"]), "thumb": self._thumbs[signature],
                           "colors": flat.get("colors", []), "brightness": flat["brightness"],
                           "enabled": flat["enabled"], "battery": self._battery.get(device.id, -1),
-                          "lamps": len(self._keys()) if device.kind == "keyboard" else 1})
+                          "lowBattery": device.id in self._low,
+                          "lamps": len(self._keys()) if device.kind == "keyboard" else 1,
+                          "keys": self._device_view(device)["keys"]})
         return cards
 
     @Slot(str, bool)
@@ -482,17 +528,24 @@ class DeviceService(QObject):
         self._settings[key] = value
         self.settingsChanged.emit()
         self._save_timer.start()
+        if key in ("macros", "layout"):
+            self.macros.set_options(self._settings["macros"], self._settings["layout"])
         if key == "fps":
             for runner in self._runners.values():
                 runner.fps = value
         elif key == "layout":
             self.scan()
             self.languageChanged.emit()  # key groups depend on the layout
+        elif key == "batteryThreshold":
+            self._settings[key] = max(5, min(50, value))
+            self._check_low_batteries()
+            self.overviewChanged.emit()
         elif key == "language":
             i18n.set_language(value)
             self._catalog = effects.catalog()
             self.languageChanged.emit()
             self.oled.retranslate()
+            self.macros.retranslate()
             self.loadProfiles()
             self.scan()  # device descriptions and the status line are written at scan time
         elif key == "linked" and value:
@@ -503,6 +556,32 @@ class DeviceService(QObject):
                     if device.controllable and device.key != selected.key:
                         self._store[device.key] = copy.deepcopy(source)
                         self._runners[device.id].configure(self._flat(self._store[device.key]))
+
+    # -------------------------------------------------------------- autostart
+
+    @Property(bool, notify=autostartChanged)
+    def autostart(self) -> bool:
+        """Whether the desktop starts Aura Studio at login (an XDG autostart entry exists)."""
+        return AUTOSTART_PATH.is_file()
+
+    @Slot(bool)
+    def setAutostart(self, enabled: bool) -> None:
+        try:
+            if enabled:
+                launcher = Path(sys.argv[0]).resolve()
+                command = ([str(launcher)] if launcher.is_file() and os.access(launcher, os.X_OK)
+                           else [sys.executable, "-m", "aura_studio.main"])
+                AUTOSTART_PATH.parent.mkdir(parents=True, exist_ok=True)
+                # --background: stay in the tray instead of opening the window, if the tray option is on.
+                AUTOSTART_PATH.write_text(
+                    "[Desktop Entry]\nType=Application\nName=Aura Studio\n"
+                    f"Exec={shlex.join(command + ['--background'])}\n"
+                    "Icon=aura-studio\nTerminal=false\nX-GNOME-Autostart-enabled=true\n", encoding="utf-8")
+            else:
+                AUTOSTART_PATH.unlink(missing_ok=True)
+        except OSError as exc:
+            self.notify.emit(tr("Autostart konnte nicht geändert werden: {error}").format(error=exc), "error")
+        self.autostartChanged.emit()
 
     # --------------------------------------------------------------- profiles
 

@@ -12,16 +12,18 @@ Item {
     component Chip: Rectangle {
         property string label: ""
         property bool good: false
+        property bool bad: false
         implicitWidth: chipText.implicitWidth + 18; implicitHeight: 24
         radius: 12
-        color: good ? Qt.rgba(Theme.good.r, Theme.good.g, Theme.good.b, 0.14) : Theme.raised
+        color: bad ? Qt.rgba(Theme.bad.r, Theme.bad.g, Theme.bad.b, 0.16)
+                   : good ? Qt.rgba(Theme.good.r, Theme.good.g, Theme.good.b, 0.14) : Theme.raised
         border.width: 1
         border.color: Theme.strokeSoft
         Text {
             id: chipText
             anchors.centerIn: parent
             text: parent.label
-            color: parent.good ? Theme.good : Theme.textDim
+            color: parent.bad ? Theme.bad : parent.good ? Theme.good : Theme.textDim
             font.pixelSize: 11; font.weight: Font.DemiBold
         }
     }
@@ -78,27 +80,12 @@ Item {
                         spacing: 18
 
                         // What the device is showing right now.
-                        Item {
-                            implicitWidth: 196; implicitHeight: 96
+                        DeviceArt {
+                            implicitWidth: 236; implicitHeight: 96
                             opacity: modelData.enabled ? 1 : 0.35
-                            KeyGrid {
-                                anchors.fill: parent
-                                visible: modelData.kind === "keyboard"
-                                radius: 12
-                                cells: modelData.thumb
-                            }
-                            Rectangle {
-                                anchors.fill: parent
-                                visible: modelData.kind !== "keyboard"
-                                radius: 12
-                                color: "#0a0a0d"
-                                Rectangle {
-                                    anchors.centerIn: parent
-                                    width: 34; height: 34; radius: 17
-                                    color: modelData.thumb[Math.floor(modelData.thumb.length / 2)] || "#000000"
-                                }
-                                Icon { anchors.centerIn: parent; name: "mouse"; size: 62; weight: 1.1; color: "#40ffffff" }
-                            }
+                            kind: modelData.kind
+                            keys: modelData.keys
+                            colors: modelData.thumb
                         }
                         ColumnLayout {
                             Layout.fillWidth: true
@@ -124,7 +111,11 @@ Item {
                                 Layout.topMargin: 4
                                 spacing: 6
                                 Chip { label: modelData.virtual ? L.t("Simulation") : L.t("Verbunden · ") + modelData.source; good: !modelData.virtual }
-                                Chip { visible: modelData.battery >= 0; label: L.t("Akku ") + modelData.battery + " %" }
+                                Chip {
+                                    visible: modelData.battery >= 0
+                                    label: (modelData.lowBattery ? L.t("Akku schwach · ") : L.t("Akku ")) + modelData.battery + " %"
+                                    bad: modelData.lowBattery
+                                }
                                 Chip { label: modelData.lamps > 1 ? modelData.lamps + L.t(" Tasten einzeln") : L.t("1 LED") }
                                 Chip { visible: modelData.hasOled; label: L.t("OLED-Display") }
                             }

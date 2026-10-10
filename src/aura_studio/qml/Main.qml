@@ -8,7 +8,7 @@ ApplicationWindow {
     height: 860
     minimumWidth: 1100
     minimumHeight: 700
-    visible: true
+    visible: !startHidden
     title: "Aura Studio"
     color: Theme.bg
 
@@ -99,6 +99,7 @@ ApplicationWindow {
                 property bool current: false
                 property bool dim: false
                 property bool dot: false
+                property bool warn: false
                 signal clicked()
                 Layout.fillWidth: true
                 implicitHeight: sub !== "" ? 52 : 42
@@ -143,7 +144,7 @@ ApplicationWindow {
                     width: 8; height: 8; radius: 4
                     anchors.right: parent.right; anchors.rightMargin: 14
                     anchors.verticalCenter: parent.verticalCenter
-                    color: Theme.good
+                    color: nav.warn ? Theme.bad : Theme.good
                 }
                 MouseArea {
                     id: navArea
@@ -189,9 +190,10 @@ ApplicationWindow {
                     delegate: NavRow {
                         icon: modelData.category === "Tastatur" ? "keyboard" : modelData.category === "Maus" ? "mouse" : "chip"
                         label: modelData.name
-                        sub: modelData.controllable ? modelData.source : L.t("Kein Adapter")
                         dim: !modelData.controllable
                         dot: modelData.controllable && !modelData.virtual
+                        warn: service.lowBattery.indexOf(modelData.id) >= 0
+                        sub: !modelData.controllable ? L.t("Kein Adapter") : warn ? L.t("Akku schwach") : modelData.source
                         current: app.page === "studio" && modelData.id === service.selected
                         onClicked: {
                             if (current) return
@@ -205,6 +207,7 @@ ApplicationWindow {
                 Item { Layout.fillHeight: true }
 
                 NavRow { visible: oled.available; icon: "display"; label: L.t("OLED-Display"); current: app.page === "oled"; onClicked: app.go("oled") }
+                NavRow { icon: "zap"; label: L.t("Makros"); current: app.page === "macros"; onClicked: app.go("macros") }
                 NavRow { icon: "layers"; label: L.t("Profile"); current: app.page === "profiles"; onClicked: app.go("profiles") }
                 NavRow { icon: "sliders"; label: L.t("Einstellungen"); current: app.page === "settings"; onClicked: app.go("settings") }
 
@@ -269,6 +272,10 @@ ApplicationWindow {
             Page {
                 current: app.page === "oled"
                 OledPage { anchors.fill: parent }
+            }
+            Page {
+                current: app.page === "macros"
+                MacrosPage { anchors.fill: parent }
             }
             Page {
                 current: app.page === "profiles"

@@ -83,21 +83,24 @@ def query_omni_pairing(path: str) -> list[tuple[int, int, int]] | None:
             os.close(fd)
 
 
-def query_battery(path: str, report_size: int) -> int | None:
-    """Battery level in percent from the keyboard's vendor channel (``12 01`` status query)."""
+def query_battery(path: str, report_id: int, query: int, index: int, report_size: int = 64) -> int | None:
+    """Battery level in percent via the receiver's vendor channel.
+
+    Every paired device answers status queries ``12 <query>`` on its own report
+    id: the keyboard reports its level with ``12 01`` (reply byte 6), ROG mice
+    with ``12 07`` (reply byte 5).
+    """
     fd = -1
     try:
         fd = os.open(path, os.O_RDWR | os.O_CLOEXEC | os.O_NONBLOCK)
-        request = bytes((0x02, 0x12, 0x01)) + bytes(report_size - 3)
-        os.write(fd, request)
+        os.write(fd, bytes((report_id, 0x12, query)) + bytes(report_size - 3))
         deadline = time.monotonic() + 0.3
         while time.monotonic() < deadline:
             if not select.select([fd], [], [], deadline - time.monotonic())[0]:
                 break
             reply = os.read(fd, 256)
-            # Echo of the request (5 bytes), then a zero and the level in percent.
-            if reply[1:3] == b"\x12\x01" and len(reply) > 6:
-                return reply[6] if reply[6] <= 100 else None
+            if reply[:3] == bytes((report_id, 0x12, query)) and len(reply) > index:
+                return reply[index] if reply[index] <= 100 else None
     except OSError:
         app_logger().debug("battery query failed path=%s", path)
     finally:
