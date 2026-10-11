@@ -109,6 +109,60 @@ def query_battery(path: str, report_id: int, query: int, index: int, report_size
     return None
 
 
+# The keyboard's own sleep timer (wireless only): after this many minutes without a key
+# press the firmware switches lighting and display off by itself. Index into the table as
+# Armoury Crate offers it; the firmware stores anything else as "never".
+SLEEP_MINUTES = (1, 2, 3, 5, 10)
+
+
+def _exchange(fd: int, report: bytes, wait: float) -> bytes | None:
+    os.write(fd, report)
+    deadline = time.monotonic() + wait
+    while time.monotonic() < deadline:
+        if not select.select([fd], [], [], deadline - time.monotonic())[0]:
+            break
+        reply = os.read(fd, 256)
+        if reply[:3] == report[:3]:
+            return reply
+    return None
+
+
+def query_sleep(path: str, report_id: int, report_size: int = 64) -> int | None:
+    """Minutes until the keyboard's firmware puts it to sleep, 0 for never, None if unknown."""
+    fd = -1
+    try:
+        fd = os.open(path, os.O_RDWR | os.O_CLOEXEC | os.O_NONBLOCK)
+        reply = _exchange(fd, bytes((report_id, 0x12, 0x01)) + bytes(report_size - 3), 0.3)
+        if reply and len(reply) > 7:
+            return SLEEP_MINUTES[reply[7]] if reply[7] < len(SLEEP_MINUTES) else 0
+    except OSError:
+        app_logger().debug("sleep query failed path=%s", path)
+    finally:
+        if fd >= 0:
+            os.close(fd)
+    return None
+
+
+def set_sleep(path: str, report_id: int, minutes: int, store: bool, report_size: int = 64) -> bool:
+    """Set the firmware sleep timer (``51 38``); ``store`` also saves it in the keyboard."""
+    index = SLEEP_MINUTES.index(minutes) if minutes in SLEEP_MINUTES else 0xFF
+    fd = -1
+    try:
+        fd = os.open(path, os.O_RDWR | os.O_CLOEXEC | os.O_NONBLOCK)
+        if not _exchange(fd, bytes((report_id, 0x51, 0x38, 0, 0, index)) + bytes(report_size - 6), 0.5):
+            return False
+        if store and not _exchange(fd, bytes((report_id, 0x50, 0x55)) + bytes(report_size - 3), 1.5):
+            return False
+        app_logger().info("Keyboard sleep timer path=%s minutes=%s stored=%s", path, minutes or "never", store)
+        return True
+    except OSError:
+        app_logger().debug("sleep change failed path=%s", path)
+        return False
+    finally:
+        if fd >= 0:
+            os.close(fd)
+
+
 class Link:
     """A sink for rendered frames. ``send`` takes one colour per lamp id."""
 

@@ -447,6 +447,24 @@ Item {
                             color: Theme.textFaint; font.pixelSize: 12
                             wrapMode: Text.Wrap
                         }
+                        Text {
+                            visible: page.deviceOptions.canSleep === true
+                            topPadding: 6
+                            text: L.t("Schlafmodus der Tastatur (Minuten)"); color: Theme.textDim; font.pixelSize: 13
+                        }
+                        Segmented {
+                            visible: page.deviceOptions.canSleep === true
+                            options: [{value: 0, label: L.t("Nie")}, {value: 1, label: "1"}, {value: 2, label: "2"}, {value: 3, label: "3"}, {value: 5, label: "5"}, {value: 10, label: "10"}]
+                            value: page.deviceOptions.sleep || 0
+                            onChosen: value => service.setDeviceOption("sleep", value)
+                        }
+                        Text {
+                            visible: page.deviceOptions.canSleep === true
+                            width: parent.width
+                            text: L.t("Die Tastatur schaltet Licht und Display im Funkbetrieb von selbst ab, auch ohne Aura Studio. Mit „Nie“ bleibt sie wach, das kostet Akku.")
+                            color: Theme.textFaint; font.pixelSize: 12
+                            wrapMode: Text.Wrap
+                        }
                     }
 
                     Rectangle { width: parent.width; height: 1; color: Theme.strokeSoft; visible: page.deviceOptions.canIdle === true }

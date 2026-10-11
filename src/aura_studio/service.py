@@ -95,6 +95,7 @@ class DeviceService(QObject):
         self.macros.activity.connect(self._on_activity)
         self._last_activity: dict[str, float] = {}   # device kind -> last time it was used
         self._sleeping: list[str] = []
+        self._firmware_sleep: dict[str, int] = {}   # device id -> minutes, 0 = never
         self._oled_asleep = False
         self._idle_timer = QTimer(self)
         self._idle_timer.setInterval(5000)
@@ -171,7 +172,8 @@ class DeviceService(QObject):
         def minutes(key: str) -> int:
             return raw.get(key) if raw.get(key) in DeviceService.IDLE_CHOICES else 0
         return {"effect": effect, "enabled": bool(raw.get("enabled", True)), "brightness": brightness, "per": per,
-                "idle": minutes("idle"), "oledIdle": minutes("oledIdle")}
+                "idle": minutes("idle"), "oledIdle": minutes("oledIdle"),
+                "sleep": raw.get("sleep") if raw.get("sleep") in DeviceService.SLEEP_CHOICES else None}
 
     def _entry(self, key: str) -> dict[str, Any]:
         if key not in self._store:
@@ -221,6 +223,7 @@ class DeviceService(QObject):
         self.oled.attach(with_display, self._runners.get(with_display.id) if with_display else None)
         self._selected = ""
         self._battery = {}
+        self._read_sleep(controllable)
         self._read_batteries(announce=False)
         self.devicesChanged.emit()
         self.selectDevice(chosen.id)
@@ -634,6 +637,24 @@ class DeviceService(QObject):
             self._sleeping = sleeping
             self.sleepingChanged.emit()
 
+    SLEEP_CHOICES = (0, *hid.SLEEP_MINUTES)   # the keyboard's own timer; 0 = never
+
+    def _read_sleep(self, devices: list[Any]) -> None:
+        """Read each wireless keyboard's firmware sleep timer and restore the chosen one."""
+        self._firmware_sleep = {}
+        for device in devices:
+            if device.virtual or device.kind != "keyboard" or not device.battery_query:
+                continue
+            path, report_id = device.battery_query[:2]
+            current = hid.query_sleep(path, report_id)
+            wanted = self._entry(device.key)["sleep"]
+            # Not stored again here: this only repairs a keyboard that lost the value.
+            if current is not None and wanted is not None and wanted != current \
+                    and hid.set_sleep(path, report_id, wanted, store=False):
+                current = wanted
+            if current is not None:
+                self._firmware_sleep[device.id] = current
+
     @Property("QVariantList", notify=sleepingChanged)
     def sleeping(self) -> list[str]:
         """Ids of devices whose lighting is currently faded out for inactivity."""
@@ -647,6 +668,7 @@ class DeviceService(QObject):
             return {}
         entry = self._entry(device.key)
         return {"idle": entry["idle"], "oledIdle": entry["oledIdle"], "hasOled": bool(device.oled_path),
+                "canSleep": device.id in self._firmware_sleep, "sleep": self._firmware_sleep.get(device.id, 0),
                 "canIdle": not device.virtual and device.kind in self._last_activity}
 
     @Property("QVariantMap", notify=configChanged)
@@ -658,6 +680,19 @@ class DeviceService(QObject):
 
     @Slot(str, int)
     def setDeviceOption(self, key: str, minutes: int) -> None:
+        if key == "sleep":
+            device = self._device(self._selected)
+            if not device or device.id not in self._firmware_sleep or minutes not in self.SLEEP_CHOICES \
+                    or self.oled.busy:
+                return
+            if hid.set_sleep(*device.battery_query[:2], minutes, store=True):
+                self._firmware_sleep[device.id] = minutes
+                self._entry(device.key)["sleep"] = minutes
+                self._save_timer.start()
+            else:
+                self.notify.emit(tr("Die Tastatur hat die Einstellung nicht angenommen."), "error")
+            self.configChanged.emit()
+            return
         if minutes not in self.IDLE_CHOICES:
             return
         if key == "oledIdle":
