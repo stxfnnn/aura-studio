@@ -640,17 +640,18 @@ class DeviceService(QObject):
     SLEEP_CHOICES = (0, *hid.SLEEP_MINUTES)   # the keyboard's own timer; 0 = never
 
     def _read_sleep(self, devices: list[Any]) -> None:
-        """Read each wireless keyboard's firmware sleep timer and restore the chosen one."""
+        """Read each wireless device's firmware sleep timer and restore the chosen one."""
         self._firmware_sleep = {}
         for device in devices:
-            if device.virtual or device.kind != "keyboard" or not device.battery_query:
+            if device.virtual or device.kind not in ("keyboard", "mouse") or not device.battery_query:
                 continue
             path, report_id = device.battery_query[:2]
-            current = hid.query_sleep(path, report_id)
+            mouse = device.kind == "mouse"
+            current = hid.query_sleep(path, report_id, mouse)
             wanted = self._entry(device.key)["sleep"]
-            # Not stored again here: this only repairs a keyboard that lost the value.
+            # Not stored again here: this only repairs a device that lost the value.
             if current is not None and wanted is not None and wanted != current \
-                    and hid.set_sleep(path, report_id, wanted, store=False):
+                    and hid.set_sleep(path, report_id, wanted, store=False, mouse=mouse):
                 current = wanted
             if current is not None:
                 self._firmware_sleep[device.id] = current
@@ -685,12 +686,12 @@ class DeviceService(QObject):
             if not device or device.id not in self._firmware_sleep or minutes not in self.SLEEP_CHOICES \
                     or self.oled.busy:
                 return
-            if hid.set_sleep(*device.battery_query[:2], minutes, store=True):
+            if hid.set_sleep(*device.battery_query[:2], minutes, store=True, mouse=device.kind == "mouse"):
                 self._firmware_sleep[device.id] = minutes
                 self._entry(device.key)["sleep"] = minutes
                 self._save_timer.start()
             else:
-                self.notify.emit(tr("Die Tastatur hat die Einstellung nicht angenommen."), "error")
+                self.notify.emit(tr("Das Gerät hat die Einstellung nicht angenommen."), "error")
             self.configChanged.emit()
             return
         if minutes not in self.IDLE_CHOICES:

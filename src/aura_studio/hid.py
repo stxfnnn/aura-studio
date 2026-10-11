@@ -109,9 +109,9 @@ def query_battery(path: str, report_id: int, query: int, index: int, report_size
     return None
 
 
-# The keyboard's own sleep timer (wireless only): after this many minutes without a key
-# press the firmware switches lighting and display off by itself. Index into the table as
-# Armoury Crate offers it; the firmware stores anything else as "never".
+# The devices' own sleep timers (wireless only): after this many minutes without input the
+# firmware switches the device's lighting (and the keyboard's display) off by itself. Index
+# into the table as Armoury Crate offers it; anything else means "never".
 SLEEP_MINUTES = (1, 2, 3, 5, 10)
 
 
@@ -127,14 +127,21 @@ def _exchange(fd: int, report: bytes, wait: float) -> bytes | None:
     return None
 
 
-def query_sleep(path: str, report_id: int, report_size: int = 64) -> int | None:
-    """Minutes until the keyboard's firmware puts it to sleep, 0 for never, None if unknown."""
+def _power_status(fd: int, report_id: int, mouse: bool, report_size: int) -> bytes | None:
+    """Reply to the status query: keyboards ``12 01`` (sleep in byte 7), mice ``12 07`` (sleep 6, alert 7)."""
+    reply = _exchange(fd, bytes((report_id, 0x12, 0x07 if mouse else 0x01)) + bytes(report_size - 3), 0.3)
+    return reply if reply and len(reply) > 7 else None
+
+
+def query_sleep(path: str, report_id: int, mouse: bool = False, report_size: int = 64) -> int | None:
+    """Minutes until the device's firmware puts it to sleep, 0 for never, None if unknown."""
     fd = -1
     try:
         fd = os.open(path, os.O_RDWR | os.O_CLOEXEC | os.O_NONBLOCK)
-        reply = _exchange(fd, bytes((report_id, 0x12, 0x01)) + bytes(report_size - 3), 0.3)
-        if reply and len(reply) > 7:
-            return SLEEP_MINUTES[reply[7]] if reply[7] < len(SLEEP_MINUTES) else 0
+        reply = _power_status(fd, report_id, mouse, report_size)
+        if reply:
+            index = reply[6 if mouse else 7]
+            return SLEEP_MINUTES[index] if index < len(SLEEP_MINUTES) else 0
     except OSError:
         app_logger().debug("sleep query failed path=%s", path)
     finally:
@@ -143,17 +150,31 @@ def query_sleep(path: str, report_id: int, report_size: int = 64) -> int | None:
     return None
 
 
-def set_sleep(path: str, report_id: int, minutes: int, store: bool, report_size: int = 64) -> bool:
-    """Set the firmware sleep timer (``51 38``); ``store`` also saves it in the keyboard."""
+def set_sleep(path: str, report_id: int, minutes: int, store: bool, mouse: bool = False,
+              report_size: int = 64) -> bool:
+    """Set the firmware sleep timer; ``store`` also saves it in the device.
+
+    Keyboards take ``51 38 00 00 <index>`` and save with ``50 55``. Mice take
+    ``51 37 00 00 <index> 00 <battery alert>`` and save with ``50 03``; the alert
+    level travels in the same command, so it is read first and sent back unchanged.
+    """
     index = SLEEP_MINUTES.index(minutes) if minutes in SLEEP_MINUTES else 0xFF
     fd = -1
     try:
         fd = os.open(path, os.O_RDWR | os.O_CLOEXEC | os.O_NONBLOCK)
-        if not _exchange(fd, bytes((report_id, 0x51, 0x38, 0, 0, index)) + bytes(report_size - 6), 0.5):
+        if mouse:
+            status = _power_status(fd, report_id, True, report_size)
+            if not status:
+                return False
+            command, save = bytes((0x51, 0x37, 0, 0, index, 0, status[7])), bytes((0x50, 0x03))
+        else:
+            command, save = bytes((0x51, 0x38, 0, 0, index)), bytes((0x50, 0x55))
+        pad = lambda body: bytes((report_id,)) + body + bytes(report_size - 1 - len(body))
+        if not _exchange(fd, pad(command), 0.6):
             return False
-        if store and not _exchange(fd, bytes((report_id, 0x50, 0x55)) + bytes(report_size - 3), 1.5):
+        if store and not _exchange(fd, pad(save), 1.5):
             return False
-        app_logger().info("Keyboard sleep timer path=%s minutes=%s stored=%s", path, minutes or "never", store)
+        app_logger().info("Sleep timer path=%s report=%s minutes=%s stored=%s", path, report_id, minutes or "never", store)
         return True
     except OSError:
         app_logger().debug("sleep change failed path=%s", path)

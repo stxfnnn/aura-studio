@@ -450,7 +450,7 @@ Item {
                         Text {
                             visible: page.deviceOptions.canSleep === true
                             topPadding: 6
-                            text: L.t("Schlafmodus der Tastatur (Minuten)"); color: Theme.textDim; font.pixelSize: 13
+                            text: L.t("Schlafmodus des Geräts (Minuten)"); color: Theme.textDim; font.pixelSize: 13
                         }
                         Segmented {
                             visible: page.deviceOptions.canSleep === true
@@ -461,7 +461,8 @@ Item {
                         Text {
                             visible: page.deviceOptions.canSleep === true
                             width: parent.width
-                            text: L.t("Die Tastatur schaltet Licht und Display im Funkbetrieb von selbst ab, auch ohne Aura Studio. Mit „Nie“ bleibt sie wach, das kostet Akku.")
+                            text: page.isKeyboard ? L.t("Die Tastatur schaltet Licht und Display im Funkbetrieb von selbst ab, auch ohne Aura Studio. Mit „Nie“ bleibt sie wach, das kostet Akku.")
+                                                  : L.t("Die Maus legt sich im Funkbetrieb von selbst schlafen, auch ohne Aura Studio, und wacht bei Bewegung wieder auf. Mit „Nie“ bleibt sie wach, das kostet Akku.")
                             color: Theme.textFaint; font.pixelSize: 12
                             wrapMode: Text.Wrap
                         }

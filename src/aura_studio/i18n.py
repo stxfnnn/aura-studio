@@ -273,10 +273,12 @@ EN: dict[str, str] = {
     # ------------------------------------------------------------------- idle
     "GERÄT": "DEVICE", "Nie": "Never", "RUHT": "ASLEEP",
     "Licht aus nach Inaktivität (Minuten)": "Lights off after inactivity (minutes)",
-    "Schlafmodus der Tastatur (Minuten)": "Keyboard sleep mode (minutes)",
+    "Schlafmodus des Geräts (Minuten)": "Device sleep mode (minutes)",
+    "Die Maus legt sich im Funkbetrieb von selbst schlafen, auch ohne Aura Studio, und wacht bei Bewegung wieder auf. Mit „Nie“ bleibt sie wach, das kostet Akku.":
+        "In wireless mode the mouse goes to sleep by itself, even without Aura Studio, and wakes up when moved. With “Never” it stays awake, which costs battery.",
     "Die Tastatur schaltet Licht und Display im Funkbetrieb von selbst ab, auch ohne Aura Studio. Mit „Nie“ bleibt sie wach, das kostet Akku.":
         "In wireless mode the keyboard switches lighting and display off by itself, even without Aura Studio. With “Never” it stays awake, which costs battery.",
-    "Die Tastatur hat die Einstellung nicht angenommen.": "The keyboard did not accept the setting.",
+    "Das Gerät hat die Einstellung nicht angenommen.": "The device did not accept the setting.",
     "Das Licht blendet aus, wenn dieses Gerät so lange nicht benutzt wurde, und kommt beim nächsten Tastendruck oder der nächsten Bewegung zurück.":
         "The lights fade out when this device has not been used for that long, and come back with the next key press or movement.",
     "Display aus nach Inaktivität (Minuten)": "Display off after inactivity (minutes)",
