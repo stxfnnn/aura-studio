@@ -6,3 +6,6 @@ SUBSYSTEM=="hidraw", KERNEL=="hidraw*", ATTRS{idVendor}=="0b05", ATTRS{idProduct
 SUBSYSTEM=="hidraw", KERNEL=="hidraw*", ATTRS{idVendor}=="0b05", ATTRS{idProduct}=="1a85", TAG+="uaccess"
 # ROG Omni Receiver (Azoth, Harpe Ace Extreme, ...)
 SUBSYSTEM=="hidraw", KERNEL=="hidraw*", ATTRS{idVendor}=="0b05", ATTRS{idProduct}=="1ace", TAG+="uaccess"
+# Fan control: lets members of "wheel" write the mainboard fan chip's PWM registers (hwmon).
+# On Debian/Ubuntu replace "wheel" with "sudo". The chip driver must be loaded, e.g. nct6775.
+ACTION=="add|change", SUBSYSTEM=="hwmon", ATTR{pwm1_enable}=="?*", RUN+="/bin/sh -c 'chgrp wheel /sys%p/pwm* && chmod g+w /sys%p/pwm*'"

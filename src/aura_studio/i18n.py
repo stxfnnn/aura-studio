@@ -284,4 +284,23 @@ EN: dict[str, str] = {
     "Display aus nach Inaktivität (Minuten)": "Display off after inactivity (minutes)",
     "Schaltet das Display aus, wenn die Tastatur so lange nicht benutzt wurde, und beim nächsten Tastendruck wieder ein. Gilt, solange Aura Studio läuft.":
         "Switches the display off when the keyboard has not been used for that long, and back on with the next key press. Applies while Aura Studio is running.",
+    # ------------------------------------------------------------------- fans
+    "Lüfter": "Fans", "Lüfter {n}": "Fan {n}",
+    "Lüfter {name} lässt sich nicht steuern: {error}": "Fan {name} cannot be controlled: {error}",
+    "Kurve auf alle Lüfter übertragen": "Curve copied to every fan",
+    "Kein Lüfterchip gefunden. Lade den Treiber und starte Aura Studio neu:":
+        "No fan chip found. Load the driver and restart Aura Studio:",
+    "Keine Schreibrechte. Installiere die udev-Regel einmalig und starte Aura Studio neu:":
+        "No write access. Install the udev rule once and restart Aura Studio:",
+    "Nicht belegt": "Not connected", "BIOS regelt": "BIOS in control", "Fest": "Fixed", "Kurve": "Curve",
+    "Das BIOS regelt diesen Lüfter wie bisher. Wähle „Fest“ für eine feste Drehzahl oder „Kurve“, um ihn nach Temperatur zu steuern.":
+        "The BIOS controls this fan as before. Choose “Fixed” for a constant speed or “Curve” to control it by temperature.",
+    "Drehzahl": "Speed", "Richtet sich nach": "Follows", "Wärmster": "Hottest",
+    "Klicken setzt einen Punkt, Ziehen verschiebt ihn, Rechtsklick entfernt ihn.":
+        "Click to add a point, drag to move it, right click to remove it.",
+    "Auf alle Lüfter übertragen": "Copy to every fan",
+    "RUHE  ·  GILT FÜR ALLE LÜFTER": "CALM  ·  APPLIES TO EVERY FAN", "geglättet": "smoothed",
+    "Temperatur glätten": "Smooth temperature", "Hochdrehen": "Speed up", "Runterdrehen": "Slow down",
+    "Längeres Glätten und langsames Hoch- und Runterdrehen machen die Lüfter träge und leise. Ab 90 °C (CPU) bzw. 85 °C (GPU) drehen sie trotzdem sofort voll auf.":
+        "Longer smoothing and slow speeding up and slowing down make the fans sluggish and quiet. From 90 °C (CPU) or 85 °C (GPU) they still go to full speed at once.",
 }

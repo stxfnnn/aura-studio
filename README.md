@@ -15,6 +15,7 @@
 - **Profiles.** Save lighting setups, see them as thumbnails and apply them with one click.
 - **Overview.** All controllable devices on one page, with the running effect, battery level and a power switch each.
 - **Idle timeouts per device.** Fade the lighting of keyboard or mouse, and switch the OLED off, after a chosen time without input. The devices' own wireless sleep timers (1 to 10 minutes, or never) can be set as well.
+- **Fan control.** The mainboard's fans (CPU, chassis, whatever hangs on the board's headers) get a fixed speed or a temperature curve with as many points as you like, following CPU, GPU or the hotter of both. A smoothing window and separate speed-up and slow-down limits stop them from chasing every short load spike. Fans left on "BIOS" are not touched.
 - **Battery warnings.** A desktop notification when keyboard or mouse run low, with an adjustable threshold.
 - **Made to be pleasant.** Live preview of keyboard and mouse, light and dark theme, an accent colour that follows the running effect or one you pick, soft interface sounds, optional system tray mode and start at login.
 - **English and German**, following the system language or set by hand.
@@ -61,6 +62,23 @@ sudo udevadm control --reload && sudo udevadm trigger
 ```
 
 To try the interface without any hardware, run `AURA_STUDIO_DEMO=only .venv/bin/aura-studio`; it starts with a simulated keyboard and mouse and touches no device.
+
+## Fan control
+
+Fans are driven through the kernel's `hwmon` interface, so the mainboard's fan chip needs its driver. Current ASUS boards (Z690/Z790/B650 …) use a Nuvoton chip handled by `nct6775`:
+
+```bash
+sudo modprobe nct6775
+echo nct6775 | sudo tee /etc/modules-load.d/nct6775.conf   # load it at boot
+```
+
+If `sensors` (or the Fans page) then lists `nct67xx` with `fan1` … entries, you are set. Writing to the fans needs the udev rule from above; it makes the chip's PWM registers writable for the `wheel` group (edit the rule for `sudo` on Debian-based systems).
+
+Good to know:
+
+- Fans only follow the curve while Aura Studio runs. On quit, and for every fan set to "BIOS", the chip is handed back to the BIOS curve. If the app is killed hard, a fan stays at its last speed until reboot; the CPU and GPU still protect themselves by throttling.
+- From 90 °C (CPU) or 85 °C (GPU) every controlled fan goes to full speed immediately, ignoring the ramp limits.
+- Which `pwm` is which header is not reported by the chip. Set a fan to "Fixed", move the slider, listen, and give it a name. Headers without a fan show as "Not connected".
 
 ## Good to know
 

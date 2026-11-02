@@ -36,6 +36,7 @@ def main() -> int:
     engine.rootContext().setContextProperty("service", service)
     engine.rootContext().setContextProperty("oled", service.oled)
     engine.rootContext().setContextProperty("macros", service.macros)
+    engine.rootContext().setContextProperty("fans", service.fans)
     tray_available = QSystemTrayIcon.isSystemTrayAvailable()
     engine.rootContext().setContextProperty("trayAvailable", tray_available)
     # Started at login: stay out of the way if there is a tray icon to come back from.

@@ -208,6 +208,7 @@ ApplicationWindow {
 
                 NavRow { visible: oled.available; icon: "display"; label: L.t("OLED-Display"); current: app.page === "oled"; onClicked: app.go("oled") }
                 NavRow { icon: "zap"; label: L.t("Makros"); current: app.page === "macros"; onClicked: app.go("macros") }
+                NavRow { icon: "fan"; label: L.t("Lüfter"); current: app.page === "fans"; onClicked: app.go("fans") }
                 NavRow { icon: "layers"; label: L.t("Profile"); current: app.page === "profiles"; onClicked: app.go("profiles") }
                 NavRow { icon: "sliders"; label: L.t("Einstellungen"); current: app.page === "settings"; onClicked: app.go("settings") }
 
@@ -276,6 +277,10 @@ ApplicationWindow {
             Page {
                 current: app.page === "macros"
                 MacrosPage { anchors.fill: parent }
+            }
+            Page {
+                current: app.page === "fans"
+                FansPage { anchors.fill: parent }
             }
             Page {
                 current: app.page === "profiles"

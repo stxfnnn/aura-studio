@@ -19,6 +19,7 @@ from PySide6.QtWidgets import QApplication
 
 from . import devices as discovery, effects, hid, i18n, layout, notifications
 from .engine import Runner
+from .fans import FanController
 from .i18n import tr
 from .macros import MacroController
 from .oled_controller import OledController
@@ -85,6 +86,7 @@ class DeviceService(QObject):
         self._store: dict[str, dict[str, Any]] = {}
         self._wanted_key = ""
         self._saved_oled: dict[str, Any] = {}
+        self._saved_fans: dict[str, Any] = {}
         self._load_state()
         i18n.set_language(self._settings["language"])
         self._catalog = effects.catalog()
@@ -93,6 +95,8 @@ class DeviceService(QObject):
         self.macros = MacroController()
         self.macros.notify.connect(self.notify)
         self.macros.activity.connect(self._on_activity)
+        self.fans = FanController(self._saved_fans, demo=bool(os.environ.get("AURA_STUDIO_DEMO")))
+        self.fans.notify.connect(self.notify)
         self._last_activity: dict[str, float] = {}   # device kind -> last time it was used
         self._sleeping: list[str] = []
         self._firmware_sleep: dict[str, int] = {}   # device id -> minutes, 0 = never
@@ -107,6 +111,7 @@ class DeviceService(QObject):
         self._save_timer.timeout.connect(self._save_state)
         self._runnerError.connect(self._on_runner_error)
         self.oled.changed.connect(self._save_timer.start)
+        self.fans.changed.connect(self._save_timer.start)
         self.oled.other_runners = lambda: list(self._runners.values()) if self._settings["oledPauseAll"] else []
         self._battery: dict[str, int] = {}
         self._warned: set[str] = set()
@@ -146,13 +151,16 @@ class DeviceService(QObject):
         self._wanted_key = str(data.get("selected", ""))
         if isinstance(data.get("oled"), dict):
             self._saved_oled = data["oled"]
+        if isinstance(data.get("fans"), dict):
+            self._saved_fans = data["fans"]
 
     def _save_state(self) -> None:
         try:
             CONFIG_DIR.mkdir(parents=True, exist_ok=True)
             selected = self._device(self._selected)
             payload = {"settings": self._settings, "devices": self._store,
-                       "selected": selected.key if selected else self._wanted_key, "oled": self.oled.draft}
+                       "selected": selected.key if selected else self._wanted_key, "oled": self.oled.draft,
+                       "fans": self.fans.state}
             temporary = STATE_PATH.with_suffix(".tmp")
             temporary.write_text(json.dumps(payload, indent=2), encoding="utf-8")
             temporary.replace(STATE_PATH)
@@ -255,6 +263,7 @@ class DeviceService(QObject):
         self._idle_timer.stop()
         self._save_state()
         self.macros.stop()
+        self.fans.stop()
         if self._oled_asleep and self.oled.idle_power(True):
             self._oled_asleep = False
         self._stop_runners(fallback=self._settings["fallback"])
@@ -570,6 +579,7 @@ class DeviceService(QObject):
             self.languageChanged.emit()
             self.oled.retranslate()
             self.macros.retranslate()
+            self.fans.retranslate()
             self.loadProfiles()
             self.scan()  # device descriptions and the status line are written at scan time
         elif key == "linked" and value:
