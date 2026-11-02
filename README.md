@@ -72,6 +72,8 @@ sudo modprobe nct6775
 echo nct6775 | sudo tee /etc/modules-load.d/nct6775.conf   # load it at boot
 ```
 
+![Fan page](docs/fans.png)
+
 If `sensors` (or the Fans page) then lists `nct67xx` with `fan1` … entries, you are set. Writing to the fans needs the udev rule from above; it makes the chip's PWM registers writable for the `wheel` group (edit the rule for `sudo` on Debian-based systems).
 
 Good to know:
